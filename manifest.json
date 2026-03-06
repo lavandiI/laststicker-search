@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "LastSticker Search",
+  "version": "1.0.1",
+  "description": "Индексация и поиск сообщений на laststicker.ru",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "*://laststicker.ru/*",
+    "*://www.laststicker.ru/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://laststicker.ru/*", "http://laststicker.ru/*", "https://www.laststicker.ru/*", "http://www.laststicker.ru/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["inline-styles.css", "inline-panel.js", "inline-storage.js", "inline-ui.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
