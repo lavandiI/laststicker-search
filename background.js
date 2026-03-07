@@ -3,45 +3,90 @@
 
 console.log('[LS Search] Background script loaded');
 
-// Background script for LastSticker Search
-// Handles message passing and script injection
+const ICONS_ENABLED = {
+  16: 'icons/icon16.png',
+  32: 'icons/icon32.png',
+  48: 'icons/icon48.png',
+  128: 'icons/icon128.png'
+};
 
-console.log('[LS Search] Background script loaded');
+const ICONS_DISABLED = {
+  16: 'icons/black/icon16.png',
+  32: 'icons/black/icon32.png',
+  48: 'icons/black/icon48.png',
+  128: 'icons/black/icon128.png'
+};
 
-// Note: Content script now handles initialization itself via messaging
-// This listener is disabled to avoid double injection
-// chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-//   console.log('[LS Search] Tab updated:', tabId, changeInfo.status);
-//   
-//   // Only inject at complete status (backup if content script fails)
-//   if (changeInfo.status === 'complete') {
-//     chrome.tabs.get(tabId, (updatedTab) => {
-//       if (chrome.runtime.lastError) return;
-//       const url = updatedTab.url;
-//       console.log('[LS Search] Tab URL:', url);
-//       
-//       if (url && url.includes('/users/my_talks')) {
-//         console.log('[LS Search] Injecting at complete stage');
-//         // Check if already injected before injecting
-//         checkAndInjectInlinePanel(tabId);
-//       }
-//     });
-//   }
-// });
+const STORAGE_KEY = 'isEnabled';
+
+async function setExtensionIcon(enabled) {
+  const icons = enabled ? ICONS_ENABLED : ICONS_DISABLED;
+  try {
+    await chrome.action.setIcon({ path: icons });
+    console.log('[LS Search] Icon updated:', enabled ? 'enabled' : 'disabled');
+  } catch (e) {
+    console.error('[LS Search] Error setting icon:', e);
+  }
+}
+
+async function loadAndSetInitialState() {
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEY);
+    const isEnabled = result[STORAGE_KEY] !== false;
+    await setExtensionIcon(isEnabled);
+    console.log('[LS Search] Initial state loaded:', isEnabled ? 'enabled' : 'disabled');
+    return isEnabled;
+  } catch (e) {
+    console.error('[LS Search] Error loading state:', e);
+    await setExtensionIcon(true);
+    return true;
+  }
+}
+
+async function isExtensionEnabled() {
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEY);
+    return result[STORAGE_KEY] !== false;
+  } catch (e) {
+    return true;
+  }
+}
+
+chrome.action.onClicked.addListener(async (tab) => {
+  console.log('[LS Search] Extension icon clicked');
+  
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEY);
+    const currentState = result[STORAGE_KEY] !== false;
+    const newState = !currentState;
+    
+    await chrome.storage.local.set({ [STORAGE_KEY]: newState });
+    await setExtensionIcon(newState);
+    
+    console.log('[LS Search] State toggled:', newState ? 'enabled' : 'disabled');
+  } catch (e) {
+    console.error('[LS Search] Error toggling state:', e);
+  }
+});
+
+loadAndSetInitialState();
 
 // Early injection - inject all scripts at once
 async function injectInlinePanelEarly(tabId) {
+  if (!(await isExtensionEnabled())) {
+    console.log('[LS Search] Extension disabled, skipping injection');
+    return;
+  }
+  
   try {
     console.log('[LS Search] Early injection starting for tab:', tabId);
     
-    // Inject all scripts in order
     await chrome.scripting.executeScript({
       target: { tabId },
       files: ['content.js']
     });
     console.log('[LS Search] content.js injected (early)');
     
-    // Small delay then inject inline scripts
     await new Promise(r => setTimeout(r, 100));
     
     await chrome.scripting.executeScript({
@@ -68,9 +113,13 @@ async function injectInlinePanelEarly(tabId) {
 }
 
 async function injectInlinePanel(tabId) {
+  if (!(await isExtensionEnabled())) {
+    console.log('[LS Search] Extension disabled, skipping injection');
+    return;
+  }
+  
   console.log('[LS Search] injectInlinePanel called for tab:', tabId);
   
-  // DEBUG: Check current state
   try {
     const results = await chrome.scripting.executeScript({
       target: { tabId },
@@ -89,7 +138,6 @@ async function injectInlinePanel(tabId) {
   }
   
   try {
-    // Inject storage first, then UI, then main panel
     await chrome.scripting.executeScript({
       target: { tabId },
       files: ['inline-storage.js']
@@ -115,165 +163,174 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log('[LS Search] Background received message:', request.action);
   
   if (request.action === 'extractMessages') {
-    // Get the active tab
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs.length === 0) {
-        sendResponse({ error: 'No active tab' });
+    (async () => {
+      if (!(await isExtensionEnabled())) {
+        sendResponse({ error: 'Расширение отключено' });
         return;
       }
       
-      const tab = tabs[0];
-      
-      // First try to send message directly to content script
-      chrome.tabs.sendMessage(tab.id, request, (response) => {
-        // Check if there was an error
-        if (chrome.runtime.lastError) {
-          // Content script not loaded - inject it
-          console.log('Content script not found, injecting...');
-          
-          chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            files: ['content.js']
-          }, (injectionResults) => {
-            if (chrome.runtime.lastError) {
-              sendResponse({ error: chrome.runtime.lastError.message });
-              return;
-            }
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs.length === 0) {
+          sendResponse({ error: 'No active tab' });
+          return;
+        }
+        
+        const tab = tabs[0];
+        
+        chrome.tabs.sendMessage(tab.id, request, (response) => {
+          if (chrome.runtime.lastError) {
+            console.log('Content script not found, injecting...');
             
-            // Wait a bit for script to load
-            setTimeout(() => {
-              // Try again
-              chrome.tabs.sendMessage(tab.id, request, (response2) => {
-                if (chrome.runtime.lastError) {
-                  sendResponse({ error: chrome.runtime.lastError.message });
-                } else {
-                  sendResponse(response2);
-                }
-              });
-            }, 500);
+            chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              files: ['content.js']
+            }, (injectionResults) => {
+              if (chrome.runtime.lastError) {
+                sendResponse({ error: chrome.runtime.lastError.message });
+                return;
+              }
+              
+              setTimeout(() => {
+                chrome.tabs.sendMessage(tab.id, request, (response2) => {
+                  if (chrome.runtime.lastError) {
+                    sendResponse({ error: chrome.runtime.lastError.message });
+                  } else {
+                    sendResponse(response2);
+                  }
+                });
+              }, 500);
+            });
+          } else {
+            sendResponse(response);
+          }
+        });
+      });
+    })();
+    return true;
+  }
+
+  if (request.action === 'indexAllSections') {
+    (async () => {
+      if (!(await isExtensionEnabled())) {
+        sendResponse({ error: 'Расширение отключено' });
+        return;
+      }
+      indexAllSectionsAsync(request, sender, sendResponse);
+    })();
+    return true;
+  }
+
+  if (request.action === 'injectDependencies') {
+    (async () => {
+      if (!(await isExtensionEnabled())) {
+        sendResponse({ error: 'Расширение отключено' });
+        return;
+      }
+      
+      chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
+        if (tabs.length === 0) {
+          sendResponse({ error: 'No active tab' });
+          return;
+        }
+        
+        const tab = tabs[0];
+        
+        if (!tab.url || !tab.url.startsWith('http')) {
+          console.log('[LS Search] Skipping injection - invalid URL:', tab.url);
+          sendResponse({ error: 'Cannot inject into this URL' });
+          return;
+        }
+        
+        try {
+          const results = await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: () => {
+              return {
+                hasInlineStorage: typeof window.InlineStorage !== 'undefined',
+                hasInlineUI: typeof window.InlineUI !== 'undefined'
+              };
+            }
           });
-        } else {
-          // Success
-          sendResponse(response);
+          
+          const state = results[0]?.result;
+          if (state && state.hasInlineStorage && state.hasInlineUI) {
+            sendResponse({ success: true, alreadyInjected: true });
+            return;
+          }
+          
+          await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            files: ['inline-storage.js']
+          });
+          
+          await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            files: ['inline-ui.js']
+          });
+          
+          sendResponse({ success: true });
+        } catch (e) {
+          console.error('[LS Search] Error injecting dependencies:', e);
+          sendResponse({ error: e.message });
         }
       });
-    });
-    
-    return true; // Keep channel open for async response
+    })();
+    return true;
   }
 
-  // Handle automatic indexing of all sections
-  if (request.action === 'indexAllSections') {
-    indexAllSectionsAsync(request, sender, sendResponse);
-    return true; // Keep channel open for async response
-  }
-
-  // Handle injection requests from content script
-  if (request.action === 'injectDependencies') {
-    // Get the tab that sent the message
-    chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
-      if (tabs.length === 0) {
-        sendResponse({ error: 'No active tab' });
-        return;
-      }
-      
-      const tab = tabs[0];
-      
-      // Check if URL is valid for injection
-      if (!tab.url || !tab.url.startsWith('http')) {
-        console.log('[LS Search] Skipping injection - invalid URL:', tab.url);
-        sendResponse({ error: 'Cannot inject into this URL' });
-        return;
-      }
-      
-      try {
-        // Check if already injected
-        const results = await chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          func: () => {
-            return {
-              hasInlineStorage: typeof window.InlineStorage !== 'undefined',
-              hasInlineUI: typeof window.InlineUI !== 'undefined'
-            };
-          }
-        });
-        
-        const state = results[0]?.result;
-        if (state && state.hasInlineStorage && state.hasInlineUI) {
-          sendResponse({ success: true, alreadyInjected: true });
-          return;
-        }
-        
-        // Inject storage and UI
-        await chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          files: ['inline-storage.js']
-        });
-        
-        await chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          files: ['inline-ui.js']
-        });
-        
-        sendResponse({ success: true });
-      } catch (e) {
-        console.error('[LS Search] Error injecting dependencies:', e);
-        sendResponse({ error: e.message });
-      }
-    });
-    return true; // Keep channel open for async response
-  }
-
-  // Handle inline-panel injection request
   if (request.action === 'injectInlinePanel') {
-    chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
-      if (tabs.length === 0) {
-        sendResponse({ error: 'No active tab' });
+    (async () => {
+      if (!(await isExtensionEnabled())) {
+        sendResponse({ error: 'Расширение отключено' });
         return;
       }
       
-      const tab = tabs[0];
-      
-      // Check if URL is valid for injection
-      if (!tab.url || !tab.url.startsWith('http')) {
-        console.log('[LS Search] Skipping injection - invalid URL:', tab.url);
-        sendResponse({ error: 'Cannot inject into this URL' });
-        return;
-      }
-      
-      try {
-        // Check if already injected
-        const results = await chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          func: () => {
-            return {
-              hasInlinePanelReady: typeof window.InlinePanelReady !== 'undefined'
-            };
-          }
-        });
-        
-        const state = results[0]?.result;
-        if (state && state.hasInlinePanelReady) {
-          sendResponse({ success: true, alreadyInjected: true });
+      chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
+        if (tabs.length === 0) {
+          sendResponse({ error: 'No active tab' });
           return;
         }
         
-        await chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          files: ['inline-panel.js']
-        });
+        const tab = tabs[0];
         
-        sendResponse({ success: true });
-      } catch (e) {
-        console.error('[LS Search] Error injecting inline-panel:', e);
-        sendResponse({ error: e.message });
-      }
-    });
-    return true; // Keep channel open for async response
+        if (!tab.url || !tab.url.startsWith('http')) {
+          console.log('[LS Search] Skipping injection - invalid URL:', tab.url);
+          sendResponse({ error: 'Cannot inject into this URL' });
+          return;
+        }
+        
+        try {
+          const results = await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: () => {
+              return {
+                hasInlinePanelReady: typeof window.InlinePanelReady !== 'undefined'
+              };
+            }
+          });
+          
+          const state = results[0]?.result;
+          if (state && state.hasInlinePanelReady) {
+            sendResponse({ success: true, alreadyInjected: true });
+            return;
+          }
+          
+          await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            files: ['inline-panel.js']
+          });
+          
+          sendResponse({ success: true });
+        } catch (e) {
+          console.error('[LS Search] Error injecting inline-panel:', e);
+          sendResponse({ error: e.message });
+        }
+      });
+    })();
+    return true;
   }
 });
 
-// Sections to index automatically
 const SECTIONS = [
   { path: '/users/my_talks/', name: 'Мои разговоры' },
   { path: '/users/my_talks/hide/', name: 'Скрытые' }
@@ -282,7 +339,6 @@ const SECTIONS = [
 async function indexAllSectionsAsync(request, sender, sendResponse) {
   const baseUrl = 'https://laststicker.ru';
 
-  // Get the active tab
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
   if (!tab || !tab.url || !tab.url.includes('laststicker.ru')) {
@@ -293,11 +349,8 @@ async function indexAllSectionsAsync(request, sender, sendResponse) {
   console.log('[LastSticker Search] Starting full indexing from inline-panel');
   console.log('[LastSticker Search] Sections to index:', SECTIONS.map(s => s.name));
   
-  // Collect all messages in array
   let allMessages = [];
 
-  // First section: Use fetch() to get HTML and extract talk IDs (my_talks)
-  // Then fetch each talk page to get messages
   const firstSection = SECTIONS[0];
   console.log(`[LastSticker Search] Fetching ${firstSection.name} without navigation`);
   
@@ -312,11 +365,9 @@ async function indexAllSectionsAsync(request, sender, sendResponse) {
       const html = await response.text();
       console.log(`[LastSticker Search] Fetched ${firstSection.name}, extracting talk IDs from all pages...`);
       
-      // Parse HTML and get talk IDs from all pages (with pagination)
       const talkIds = await extractAllTalkIdsWithPagination(html, baseUrl + firstSection.path, tab.id);
       console.log(`[LastSticker Search] Found ${talkIds.length} talks in ${firstSection.name} (all pages)`);
       
-      // Fetch all messages from each talk
       const talkMessages = await fetchAllHiddenTalkMessages(talkIds, baseUrl, tab.id);
       console.log(`[LastSticker Search] Extracted ${talkMessages.length} messages from ${firstSection.name}`);
       allMessages = allMessages.concat(talkMessages);
@@ -325,7 +376,6 @@ async function indexAllSectionsAsync(request, sender, sendResponse) {
     console.error(`Error fetching ${firstSection.name}:`, e);
   }
   
-  // Second section: Use fetch() to get HTML without navigation (Скрытые)
   const hiddenSection = SECTIONS[1];
   console.log(`[LastSticker Search] Fetching ${hiddenSection.name} without navigation`);
   
@@ -340,11 +390,9 @@ async function indexAllSectionsAsync(request, sender, sendResponse) {
       const html = await response.text();
       console.log(`[LastSticker Search] Fetched ${hiddenSection.name}, extracting talk IDs from all pages...`);
       
-      // Parse HTML and get talk IDs from all pages (with pagination)
       const talkIds = await extractAllTalkIdsWithPagination(html, baseUrl + hiddenSection.path, tab.id);
       console.log(`[LastSticker Search] Found ${talkIds.length} talks in ${hiddenSection.name} (all pages)`);
       
-      // Fetch all messages from each hidden talk
       const hiddenMessages = await fetchAllHiddenTalkMessages(talkIds, baseUrl, tab.id);
       console.log(`[LastSticker Search] Extracted ${hiddenMessages.length} messages from ${hiddenSection.name}`);
       allMessages = allMessages.concat(hiddenMessages);
@@ -356,12 +404,10 @@ async function indexAllSectionsAsync(request, sender, sendResponse) {
   console.log(`[LastSticker Search] Total messages collected: ${allMessages.length}`);
   console.log(`[LastSticker Search] Indexed sections: ${SECTIONS.map(s => s.name)}`);
   
-  // Save to localStorage for inline-panel (only once at the end)
   try {
     await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: (messages) => {
-        // First load existing messages
         let existing = [];
         try {
           const raw = localStorage.getItem('ls_search_messages');
@@ -370,7 +416,6 @@ async function indexAllSectionsAsync(request, sender, sendResponse) {
           }
         } catch (e) {}
         
-        // Helper function to build unique key (same as inline-storage.js)
         function buildKey(msg) {
           const talkId = msg.talkId || '';
           const messageId = msg.messageId || '';
@@ -383,7 +428,6 @@ async function indexAllSectionsAsync(request, sender, sendResponse) {
           return 'legacy::' + partner + '::' + text + '::' + ts + '::' + talkId;
         }
         
-        // Merge with new messages using proper key
         const map = new Map();
         existing.forEach(m => map.set(buildKey(m), m));
         messages.forEach(m => map.set(buildKey(m), m));
@@ -393,21 +437,18 @@ async function indexAllSectionsAsync(request, sender, sendResponse) {
         localStorage.setItem('ls_search_last_indexed_at', String(Date.now()));
         console.log('[LastSticker Search] Saved messages to localStorage:', merged.length);
         
-        // Update UI stats after saving - with retry for page load timing
         const updateUI = () => {
           if (typeof window.InlineStorage !== 'undefined' && typeof window.InlineUI !== 'undefined') {
             const stats = window.InlineStorage.getStats(merged);
             window.InlineUI.renderStats(stats);
             window.InlineUI.renderLastIndexedAt(Date.now());
             
-            // Show success message
             if (typeof window.InlineUI.showStatus === 'function') {
               window.InlineUI.showStatus('Индексация завершена: ' + stats.dialogsCount + ' диалогов, ' + stats.messagesCount + ' сообщений', 'success');
             }
           }
         };
         
-        // Try immediately, then with delay
         updateUI();
         setTimeout(updateUI, 500);
         setTimeout(updateUI, 1500);
@@ -421,27 +462,19 @@ async function indexAllSectionsAsync(request, sender, sendResponse) {
   sendResponse({ messages: allMessages, indexedSections: SECTIONS.map(s => s.name) });
 }
 
-// Extract messages from HTML string (without page navigation)
 async function extractMessagesFromHtml(html, baseUrl) {
   return new Promise((resolve) => {
     chrome.scripting.executeScript({
-      target: { tabId: 0 }, // dummy, will use func instead
+      target: { tabId: 0 },
       func: (htmlContent, pageUrl) => {
-        // Create DOM from HTML string
         const parser = new DOMParser();
         const doc = parser.parseFromString(htmlContent, 'text/html');
         
-        // Use the existing extraction logic from content.js
-        // We need to call extractAllFromTalksList with the parsed document
-        
-        // Get path to determine which extraction function to use
         const path = pageUrl.replace(/^https?:\/\/[^/]+/, '');
         
-        // Check if it's hidden talks
         const isHidden = path.includes('/hide/');
         const talksBasePath = isHidden ? '/users/my_talks/hide/' : '/users/my_talks/';
         
-        // Collect all talk IDs from current page
         const talks = [];
         const talkRows = doc.querySelectorAll('#talks_table tr[id^="talk_"]');
         
@@ -456,16 +489,12 @@ async function extractMessagesFromHtml(html, baseUrl) {
           });
         });
         
-        // Fetch messages from each talk
         const messages = [];
         
-        // For now, just extract from list (last message from each talk)
-        // Full pagination would require fetching each talk page
         talkRows.forEach((row) => {
           const talkId = row.id.replace('talk_', '').trim();
           if (!talkId) return;
           
-          // Get partner username
           let partner = '';
           const firstCol = row.querySelector('td:first-child');
           if (firstCol) {
@@ -481,7 +510,6 @@ async function extractMessagesFromHtml(html, baseUrl) {
             }
           }
           
-          // Get last message text
           let text = '';
           const messageDiv = doc.getElementById('talk_text_' + talkId);
           if (messageDiv) {
@@ -490,7 +518,6 @@ async function extractMessagesFromHtml(html, baseUrl) {
             text = clone.textContent.trim();
           }
           
-          // Get timestamp
           let timestamp = null;
           const secondCol = row.querySelector('td:last-child');
           if (secondCol) {
@@ -573,7 +600,6 @@ async function extractMessagesFromHtml(html, baseUrl) {
   });
 }
 
-// Extract messages from a specific tab
 function extractMessagesFromTab(tabId) {
   return new Promise((resolve) => {
     chrome.tabs.sendMessage(tabId, { action: 'extractMessages' }, (response) => {
@@ -592,7 +618,6 @@ function extractMessagesFromTab(tabId) {
   });
 }
 
-// Extract talk IDs from HTML with pagination (for hidden talks list)
 async function extractAllTalkIdsWithPagination(html, baseUrl, tabId) {
   return new Promise((resolve) => {
     chrome.scripting.executeScript({
@@ -600,7 +625,6 @@ async function extractAllTalkIdsWithPagination(html, baseUrl, tabId) {
       func: async (htmlContent, baseUrl) => {
         const allTalkIds = [];
         
-        // Helper function to extract talk IDs from a document
         function extractTalkIds(doc) {
           const talkIds = [];
           const talkRows = doc.querySelectorAll('#talks_table tr[id^="talk_"]');
@@ -616,18 +640,15 @@ async function extractAllTalkIdsWithPagination(html, baseUrl, tabId) {
           return talkIds;
         }
         
-        // Parse first page
         const parser = new DOMParser();
         let doc = parser.parseFromString(htmlContent, 'text/html');
         
         allTalkIds.push(...extractTalkIds(doc));
         
-        // Get pagination links
         const pagesRoot = doc.querySelector('#pages');
         const pageUrls = new Set();
         
         if (pagesRoot) {
-          // Determine section type based on baseUrl
           const isHidden = baseUrl.includes('/hide/');
           const hrefPattern = isHidden ? '/users/my_talks/hide/' : '/users/my_talks/page';
           
@@ -640,7 +661,6 @@ async function extractAllTalkIdsWithPagination(html, baseUrl, tabId) {
         
         console.log('[LS] Found pagination pages:', pageUrls.size);
         
-        // Fetch other pages (limit to 50 pages)
         const otherPages = Array.from(pageUrls).slice(0, 50);
         
         for (const pageUrl of otherPages) {
@@ -679,7 +699,6 @@ async function extractAllTalkIdsWithPagination(html, baseUrl, tabId) {
   });
 }
 
-// Extract talk IDs from HTML (for hidden talks) - uses current tab context
 async function extractTalkIdsFromHtml(html, tabId) {
   return new Promise((resolve) => {
     chrome.scripting.executeScript({
@@ -718,7 +737,6 @@ async function extractTalkIdsFromHtml(html, tabId) {
   });
 }
 
-// Fetch all messages from all hidden talks
 async function fetchAllHiddenTalkMessages(talkIds, baseUrl, tabId) {
   const allMessages = [];
   const MAX_TALKS = 2000;
@@ -744,13 +762,11 @@ async function fetchAllHiddenTalkMessages(talkIds, baseUrl, tabId) {
   return allMessages;
 }
 
-// Fetch all messages from a single talk (with pagination) - uses page context for parsing
 async function fetchTalkMessages(talkId, baseUrl, tabId) {
   const messages = [];
-  // Hidden talks use the same URL format as regular talks
   const talkUrl = `${baseUrl}/users/my_talks/${talkId}/`;
   
-    console.log(`[LS] Fetching hidden talk: ${talkUrl}`);
+  console.log(`[LS] Fetching hidden talk: ${talkUrl}`);
   
   try {
     const response = await fetch(talkUrl, { credentials: 'include' });
@@ -763,7 +779,6 @@ async function fetchTalkMessages(talkId, baseUrl, tabId) {
     
     const html = await response.text();
     
-    // Parse in page context
     const extracted = await parseTalkHtmlWithPagination(html, talkUrl, tabId);
     
     if (extracted && extracted.messages) {
@@ -777,7 +792,6 @@ async function fetchTalkMessages(talkId, baseUrl, tabId) {
   return messages;
 }
 
-// Parse talk HTML with full pagination in page context
 async function parseTalkHtmlWithPagination(html, talkUrl, tabId) {
   return new Promise((resolve) => {
     chrome.scripting.executeScript({
@@ -785,7 +799,6 @@ async function parseTalkHtmlWithPagination(html, talkUrl, tabId) {
       func: async (htmlContent, url) => {
         console.log('[LS] Parsing talk:', url);
         
-        // Helper function to extract messages from document
         function extractMessagesFromDoc(doc, defaultPartner, talkId) {
           const messages = [];
           const messageElements = doc.querySelectorAll('.user_message');
@@ -801,7 +814,6 @@ async function parseTalkHtmlWithPagination(html, talkUrl, tabId) {
           return messages;
         }
         
-        // Helper function to parse user message
         function parseUserMessageEl(el, defaultPartner, talkId) {
           try {
             const divs = el.querySelectorAll('div');
@@ -824,7 +836,6 @@ async function parseTalkHtmlWithPagination(html, talkUrl, tabId) {
             
             if (!headerDiv) return null;
 
-            // Extract messageId
             let messageId = null;
             const wrapper = headerDiv.parentNode;
             if (wrapper && wrapper.id) {
@@ -834,7 +845,6 @@ async function parseTalkHtmlWithPagination(html, talkUrl, tabId) {
               }
             }
             
-            // Get timestamp
             let timestamp = null;
             const timeSpan = headerDiv.querySelector('span');
             if (timeSpan) {
@@ -842,7 +852,6 @@ async function parseTalkHtmlWithPagination(html, talkUrl, tabId) {
               timestamp = parseDateStr(dateText);
             }
             
-            // Get partner
             let partner = defaultPartner;
             const userLink = headerDiv.querySelector('a[href^="/users/"]');
             
@@ -856,58 +865,55 @@ async function parseTalkHtmlWithPagination(html, talkUrl, tabId) {
               }
             }
 
-    // Get message text
-    let text = '';
-    if (textDiv) {
-      text = textDiv.textContent.trim();
-      
-      // Always extract image URLs and append to text
-      const images = textDiv.querySelectorAll('img');
-      if (images.length > 0) {
-        const imgSrcs = Array.from(images).map(img => {
-          const src = img.getAttribute('src') || img.getAttribute('data-src');
-          if (src) {
-            if (src.startsWith('data:image/')) {
-              const base64Match = src.match(/^data:image\/(\w+);base64,/);
-              const format = base64Match ? base64Match[1] : 'unknown';
-              return `[Base64 ${format}]`;
+            let text = '';
+            if (textDiv) {
+              text = textDiv.textContent.trim();
+              
+              const images = textDiv.querySelectorAll('img');
+              if (images.length > 0) {
+                const imgSrcs = Array.from(images).map(img => {
+                  const src = img.getAttribute('src') || img.getAttribute('data-src');
+                  if (src) {
+                    if (src.startsWith('data:image/')) {
+                      const base64Match = src.match(/^data:image\/(\w+);base64,/);
+                      const format = base64Match ? base64Match[1] : 'unknown';
+                      return `[Base64 ${format}]`;
+                    }
+                    return src;
+                  }
+                  return '';
+                }).filter(Boolean);
+                if (imgSrcs.length > 0) {
+                  const imageText = '[Image: ' + imgSrcs.join(', ') + ']';
+                  text = text ? text + ' ' + imageText : imageText;
+                }
+              }
+            } else {
+              const clone = el.cloneNode(true);
+              if (clone.querySelector('div')) {
+                clone.querySelectorAll('div').forEach(d => d.remove());
+              }
+              text = clone.textContent.trim();
             }
-            return src;
+            
+            if (!text || text.length < 1) return null;
+            
+            text = text.replace(/\s+/g, ' ').trim();
+            
+            return {
+              text: text,
+              partner: partner,
+              timestamp: timestamp,
+              url: `https://laststicker.ru/users/my_talks/${talkId}/`,
+              talkId: talkId,
+              messageId: messageId || undefined
+            };
+            
+          } catch (e) {
+            return null;
           }
-          return '';
-        }).filter(Boolean);
-        if (imgSrcs.length > 0) {
-          const imageText = '[Image: ' + imgSrcs.join(', ') + ']';
-          text = text ? text + ' ' + imageText : imageText;
         }
-      }
-    } else {
-      const clone = el.cloneNode(true);
-      if (clone.querySelector('div')) {
-        clone.querySelectorAll('div').forEach(d => d.remove());
-      }
-      text = clone.textContent.trim();
-    }
-    
-    if (!text || text.length < 1) return null;
-    
-    text = text.replace(/\s+/g, ' ').trim();
-    
-    return {
-      text: text,
-      partner: partner,
-      timestamp: timestamp,
-      url: `https://laststicker.ru/users/my_talks/${talkId}/`,
-      talkId: talkId,
-      messageId: messageId || undefined
-    };
-    
-  } catch (e) {
-    return null;
-  }
-}
 
-// Parse date string
         function parseDateStr(dateStr) {
           if (!dateStr) return null;
           dateStr = dateStr.trim();
@@ -933,7 +939,6 @@ async function parseTalkHtmlWithPagination(html, talkUrl, tabId) {
         const parser = new DOMParser();
         const doc = parser.parseFromString(htmlContent, 'text/html');
         
-        // Debug: check what elements exist
         const userMessages = doc.querySelectorAll('.user_message');
         console.log('[LS] Found .user_message elements:', userMessages.length);
         
@@ -943,7 +948,6 @@ async function parseTalkHtmlWithPagination(html, talkUrl, tabId) {
         const contentDiv = doc.querySelector('#content');
         console.log('[LS] Found #content:', !!contentDiv);
         
-        // Get partner from page title
         let partner = '';
         const titleLink = doc.querySelector('#content h1 a');
         if (titleLink) {
@@ -951,17 +955,14 @@ async function parseTalkHtmlWithPagination(html, talkUrl, tabId) {
         }
         console.log('[LS] Partner:', partner);
         
-        // Extract talkId from URL
         const match = url.match(/\/users\/my_talks\/(\d+)\//);
         const talkId = match ? match[1] : '';
         
         const messages = [];
         
-        // Parse first page
         messages.push(...extractMessagesFromDoc(doc, partner, talkId));
         console.log('[LS] Parsed messages count:', messages.length);
         
-        // Get all pagination pages
         const allUrls = new Set([url]);
         const pagesRoot = doc.querySelector('#pages');
         if (pagesRoot) {
@@ -972,7 +973,6 @@ async function parseTalkHtmlWithPagination(html, talkUrl, tabId) {
           });
         }
         
-        // Fetch other pages (limit to 30 pages)
         const otherUrls = Array.from(allUrls).filter(u => u !== url).slice(0, 30);
         
         for (const pageUrl of otherUrls) {
@@ -985,7 +985,6 @@ async function parseTalkHtmlWithPagination(html, talkUrl, tabId) {
             
             messages.push(...extractMessagesFromDoc(pageDoc, partner, talkId));
           } catch (e) {
-            // Continue to next page
           }
         }
         
@@ -1014,7 +1013,6 @@ async function parseTalkHtmlWithPagination(html, talkUrl, tabId) {
   });
 }
 
-// Extract messages from document (runs in page context)
 function extractMessagesFromDoc(doc, defaultPartner, talkId) {
   const messages = [];
   const messageElements = doc.querySelectorAll('.user_message');
@@ -1029,7 +1027,6 @@ function extractMessagesFromDoc(doc, defaultPartner, talkId) {
   return messages;
 }
 
-// Parse a user message element (runs in page context)
 function parseUserMessageEl(el, defaultPartner, talkId) {
   try {
     const divs = el.querySelectorAll('div');
@@ -1052,7 +1049,6 @@ function parseUserMessageEl(el, defaultPartner, talkId) {
     
     if (!headerDiv) return null;
 
-    // Extract messageId
     let messageId = null;
     const wrapper = headerDiv.parentNode;
     if (wrapper && wrapper.id) {
@@ -1062,7 +1058,6 @@ function parseUserMessageEl(el, defaultPartner, talkId) {
       }
     }
     
-    // Get timestamp
     let timestamp = null;
     const timeSpan = headerDiv.querySelector('span');
     if (timeSpan) {
@@ -1070,7 +1065,6 @@ function parseUserMessageEl(el, defaultPartner, talkId) {
       timestamp = parseDateStr(dateText);
     }
     
-    // Get partner
     let partner = defaultPartner;
     const userLink = headerDiv.querySelector('a[href^="/users/"]');
     
@@ -1084,12 +1078,10 @@ function parseUserMessageEl(el, defaultPartner, talkId) {
       }
     }
 
-    // Get message text
     let text = '';
     if (textDiv) {
       text = textDiv.textContent.trim();
       
-      // If text is empty but there are images, use image info
       if (!text) {
         const images = textDiv.querySelectorAll('img');
         if (images.length > 0) {
@@ -1134,7 +1126,6 @@ function parseUserMessageEl(el, defaultPartner, talkId) {
   }
 }
 
-// Parse date string (runs in page context)
 function parseDateStr(dateStr) {
   if (!dateStr) return null;
   dateStr = dateStr.trim();
