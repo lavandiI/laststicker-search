@@ -5,33 +5,50 @@
 (function() {
   'use strict';
   
+  // Current talk page state
+  let currentTalkId = null;
+  let currentPartnerName = '';
+  
+  // Check if this is a single talk page
+  function isSingleTalkPath(path) {
+    return /^(?:\/users\/my_talks(?:\/hide)?\/\d+\/?)(?:page\d+\/?)?$/.test(path);
+  }
+  
+  // Get talk ID from URL
+  function getTalkIdFromPath(path) {
+    const match = path.match(/^\/users\/my_talks(?:\/hide)?\/(\d+)\/?/);
+    return match ? match[1] : null;
+  }
+  
+  // Get partner name from page
+  function getPartnerNameFromPage() {
+    const titleLink = document.querySelector('#content h1 a');
+    return titleLink ? titleLink.textContent.trim() : '';
+  }
+  
   // Wait for DOM and dependencies
   function init() {
     console.log('[LS Search] inline-panel init called, readyState:', document.readyState);
     
-    // Check if we're on the right page (my_talks)
     const path = window.location.pathname;
     
-    // Check if this is a single talk page (e.g., /users/my_talks/12345/)
-    // We should NOT show the panel on individual talk pages
-    const isSingleTalk = /^(?:\/users\/my_talks(?:\/hide)?\/\d+\/?)(?:page\d+\/?)?$/.test(path);
-    
-    if (isSingleTalk) {
-      console.log('[LS Search] Single talk page, skipping panel');
-      console.log('Init', 'Single talk page detected, skipping panel');
+    // Check if this is a single talk page
+    if (isSingleTalkPath(path)) {
+      console.log('[LS Search] Single talk page detected, initializing talk panel');
+      currentTalkId = getTalkIdFromPath(path);
+      currentPartnerName = getPartnerNameFromPage();
+      console.log('[LS Search] Current talkId:', currentTalkId, 'Partner:', currentPartnerName);
+      initTalkPage();
       return;
     }
     
     // Only show on talks list pages (not hidden)
-    // /users/my_talks/, /users/my_talks/page2/, etc.
     if (!path.startsWith('/users/my_talks/') || path.includes('/hide/')) {
       console.log('[LS Search] Not on talks list page, skipping');
       return;
     }
     
     console.log('[LS Search] Initializing inline panel...');
-    
-    // Check if InlineStorage and InlineUI are available
     
     // Wait for InlineStorage and InlineUI to be available
     let attempts = 0;
@@ -41,46 +58,406 @@
       attempts++;
       
       console.log('[LS Search] checkDependencies attempt', attempts, '/', maxAttempts, '- InlineStorage:', !!window.InlineStorage, 'InlineUI:', !!window.InlineUI);
-      console.log('Deps', `Check attempt ${attempts}/${maxAttempts}`, {
-        InlineStorage: !!window.InlineStorage,
-        InlineUI: !!window.InlineUI
-      });
       
       if (window.InlineStorage && window.InlineUI) {
-        console.log('Deps', 'Dependencies found, injecting styles');
-        // Inject styles
         injectStyles();
         
-        // Create UI panel
         const elements = window.InlineUI.createSearchPanel();
         
         if (!elements) {
           console.log('[LS Search] Could not create panel');
-          console.log('Init', 'ERROR: createSearchPanel returned null');
           return;
         }
         
-        console.log('Init', 'Panel created successfully', {
-          hasIndexBtn: !!elements.indexBtn,
-          hasClearBtn: !!elements.clearBtn,
-          hasSearchInput: !!elements.searchInput
-        });
+        console.log('Init', 'Panel created successfully');
         
-        // Initialize with stored data
         initPanel(elements);
-        
-        // Signal that panel is ready
         window.InlinePanelReady = true;
       } else if (attempts < maxAttempts) {
-        console.log('Deps', 'Dependencies not ready, retrying in 100ms');
         setTimeout(checkDependencies, 100);
       } else {
         console.log('[LS Search] Dependencies not loaded');
-        console.log('Deps', 'ERROR: Dependencies not loaded after max attempts');
       }
     }
     
     checkDependencies();
+  }
+  
+  // Initialize panel for single talk page
+  async function initTalkPage() {
+    console.log('[LS Search] initTalkPage called');
+    
+    let attempts = 0;
+    const maxAttempts = 20;
+    
+    function checkDependencies() {
+      attempts++;
+      
+      if (window.InlineStorage && window.InlineUI) {
+        injectStyles();
+        
+        const elements = window.InlineUI.createTalkSearchPanel();
+        
+        if (!elements) {
+          console.log('[LS Search] Could not create talk panel');
+          return;
+        }
+        
+        console.log('Init', 'Talk panel created, talkId:', currentTalkId);
+        
+        initTalkPanel(elements);
+        window.InlinePanelReady = true;
+      } else if (attempts < maxAttempts) {
+        setTimeout(checkDependencies, 100);
+      } else {
+        console.log('[LS Search] Dependencies not loaded');
+      }
+    }
+    
+    checkDependencies();
+  }
+  
+  // Initialize talk panel with event handlers
+  async function initTalkPanel(elements) {
+    console.log('[LS Search] initTalkPanel called with elements:', elements);
+    const { searchInput, talkId, partnerName } = elements;
+    
+    let messages = await window.InlineStorage.loadMessages();
+    
+    // Filter messages by current talkId
+    let talkMessages = messages.filter(msg => msg.talkId == talkId);
+    let messageCount = talkMessages.length;
+    
+    // Check if we need to fetch more pages
+    // Count messages on current page from DOM
+    const currentPageMessages = document.querySelectorAll('.user_message').length;
+    const pagesDiv = document.getElementById('pages');
+    
+    // Always fetch additional pages to get complete conversation
+    console.log('[LS Search] Starting fetch for talkId:', talkId);
+    let additionalMessages = [];
+    try {
+      additionalMessages = await fetchAllTalkPages(talkId);
+    } catch (e) {
+      console.log('[LS Search] Error fetching additional pages:', e);
+    }
+    console.log('[LS Search] Total additional messages fetched:', additionalMessages.length);
+    
+    if (additionalMessages.length > 0) {
+      // Merge with existing messages - use text+timestamp for deduplication since messageId might not be unique
+      const existingTexts = new Set(talkMessages.map(m => `${m.text?.substring(0, 50)}_${m.timestamp}`));
+      const newMsgs = additionalMessages.filter(m => {
+        const key = `${m.text?.substring(0, 50)}_${m.timestamp}`;
+        return !existingTexts.has(key);
+      });
+      
+      if (newMsgs.length > 0) {
+        const allTalkMessages = [...talkMessages, ...newMsgs];
+        await window.InlineStorage.saveMessages([...messages, ...newMsgs], {});
+        talkMessages = allTalkMessages;
+        messageCount = allTalkMessages.length;
+        console.log('[LS Search] Added', newMsgs.length, 'new messages, total:', messageCount);
+        
+        // Update stats display with new count
+        window.InlineUI.renderTalkStats(messageCount, partnerName);
+      }
+    }
+    
+    // Update stats display
+    window.InlineUI.renderTalkStats(messageCount, partnerName);
+    
+    // Initial state
+    if (!messageCount) {
+      window.InlineUI.renderEmptyState('no-index');
+    }
+    
+    // Search handler - filter by talkId first, then search text
+    if (searchInput && !searchInput._hasTalkSearchListener) {
+      searchInput._hasTalkSearchListener = true;
+      
+      searchInput.addEventListener('input', (e) => {
+        const query = e.target.value.trim();
+        if (query) {
+          performTalkSearch(query, talkId);
+        } else {
+          if (messageCount > 0) {
+            window.InlineUI.renderEmptyState('no-query');
+          } else {
+            window.InlineUI.renderEmptyState('no-index');
+          }
+        }
+      });
+    }
+    
+    // Also trigger search on initial value if any
+    if (searchInput && searchInput.value.trim()) {
+      performTalkSearch(searchInput.value.trim(), talkId);
+    }
+  }
+  
+  // Fetch all pages of a talk
+  async function fetchAllTalkPages(talkId) {
+    console.log('[LS Search] fetchAllTalkPages called with talkId:', talkId);
+    const allMessages = [];
+    const origin = window.location.origin;
+    const path = window.location.pathname;
+    const isHidden = path.includes('/hide/');
+    const talksBasePath = isHidden ? '/users/my_talks/hide/' : '/users/my_talks/';
+    
+    // Normalize URL to avoid duplicates (remove trailing slash)
+    const normalizeUrl = (url) => {
+      return url.replace(/\/+$/, '') || '/';
+    };
+    
+    // Get all page URLs from pagination
+    const pagesDiv = document.getElementById('pages');
+    const urlSet = new Set();
+    
+    // Add current page URL (normalized)
+    urlSet.add(normalizeUrl(window.location.href));
+    
+    if (pagesDiv) {
+      const pageLinks = pagesDiv.querySelectorAll('a.page[href*="/users/my_talks/"]');
+      pageLinks.forEach(link => {
+        const href = link.getAttribute('href');
+        if (href) {
+          urlSet.add(normalizeUrl(href));
+        }
+      });
+    }
+    
+    // Also try to add base talk URL and numbered pages
+    urlSet.add(normalizeUrl(`${origin}${talksBasePath}${talkId}/`));
+    
+    // Try adding page1-page10 URLs
+    for (let i = 1; i <= 10; i++) {
+      urlSet.add(normalizeUrl(`${origin}${talksBasePath}${talkId}/page${i}/`));
+    }
+    
+    // Also add URL variations
+    urlSet.add(normalizeUrl(`${origin}${talksBasePath}${talkId}`));
+    urlSet.add(normalizeUrl(`${origin}${talksBasePath}${talkId}/`));
+    
+    console.log('[LS Search] URLs to fetch:', Array.from(urlSet));
+    
+    for (const rawUrl of urlSet) {
+      try {
+        // Use XHR instead of fetch for better compatibility
+        const response = await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('GET', rawUrl, true);
+          xhr.onload = () => resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, text: () => Promise.resolve(xhr.responseText) });
+          xhr.onerror = () => reject(new Error('Network error: ' + rawUrl));
+          xhr.send();
+        });
+        
+        console.log('[LS Search] Fetched URL:', rawUrl, 'status:', response.status);
+        if (!response.ok) continue;
+        
+        const html = await response.text();
+        
+        // Check if response contains actual content
+        if (!html || html.length < 1000) {
+          console.log('[LS Search] Empty or short response from', rawUrl);
+          continue;
+        }
+        
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        
+        const pageMessages = extractMessagesFromTalkDocument(doc, currentPartnerName, talkId, rawUrl);
+        console.log('[LS Search] Got', pageMessages.length, 'messages from', rawUrl);
+        allMessages.push(...pageMessages);
+      } catch (e) {
+        console.error('[LS Search] Error fetching talk page:', rawUrl, e);
+      }
+    }
+
+    return allMessages;
+  }
+
+  // Extract messages from a talk document
+  function extractMessagesFromTalkDocument(doc, defaultPartner, talkId, pageUrl) {
+    const result = [];
+    const messageElements = doc.querySelectorAll('.user_message');
+    console.log('[LS Search] Found', messageElements.length, 'message elements in', pageUrl);
+    
+    messageElements.forEach((el) => {
+      const msg = parseUserMessageFromElement(el, defaultPartner);
+      if (msg) {
+        msg.talkId = talkId;
+        msg.url = pageUrl;
+        result.push(msg);
+      }
+    });
+    
+    return result;
+  }
+  
+  // Parse a message element
+  function parseUserMessageFromElement(el, defaultPartner) {
+    try {
+      const divs = el.querySelectorAll('div');
+      let headerDiv = null;
+      let textDiv = null;
+      
+      for (let i = 0; i < divs.length; i++) {
+        const d = divs[i];
+        const cls = d.className || '';
+        if (cls.includes('big_text')) {
+          textDiv = d;
+        } else if (d.querySelector('span') && d.querySelector('a')) {
+          headerDiv = d;
+        }
+      }
+      
+      if (!headerDiv && divs.length > 0) {
+        headerDiv = divs[0];
+      }
+      
+      if (!headerDiv) {
+        return null;
+      }
+      
+      // Get messageId
+      let messageId = null;
+      const wrapper = headerDiv.parentNode;
+      if (wrapper && wrapper.id) {
+        const idMatch = String(wrapper.id).match(/^msg_(\d+)/);
+        if (idMatch) {
+          messageId = idMatch[1];
+        }
+      }
+      
+      // Get timestamp
+      let timestamp = null;
+      const timeSpan = headerDiv.querySelector('span');
+      if (timeSpan) {
+        const dateText = timeSpan.textContent.trim();
+        timestamp = parseDate(dateText);
+      }
+      
+      // Get partner
+      let partner = defaultPartner;
+      const userLink = headerDiv.querySelector('a[href^="/users/"]');
+      
+      if (userLink) {
+        const href = userLink.getAttribute('href');
+        if (href && !href.includes('/83061/')) {
+          const linkText = userLink.textContent.trim();
+          if (linkText) {
+            partner = linkText;
+          }
+        }
+      }
+      
+      // Get message text
+      let text = '';
+      if (textDiv) {
+        text = textDiv.textContent.trim();
+        
+        // If text is empty but there are images, use image info
+        if (!text) {
+          const images = textDiv.querySelectorAll('img');
+          if (images.length > 0) {
+            const imgSrcs = Array.from(images).map(img => {
+              // Try to get meaningful part of URL
+              const src = img.src || img.getAttribute('data-src');
+              if (src) {
+                // Extract filename or ID from URL
+                const match = src.match(/\/([^\/]+)$/);
+                return match ? match[1] : src;
+              }
+              return '';
+            }).filter(Boolean);
+            text = '[Image: ' + imgSrcs.join(', ') + ']';
+          }
+        }
+      } else {
+        const clone = el.cloneNode(true);
+        if (clone.querySelector('div')) {
+          clone.querySelectorAll('div').forEach(d => d.remove());
+        }
+        text = clone.textContent.trim();
+      }
+      
+      // Don't filter out messages with just images - they are valid
+      if (!text) {
+        text = '[Image message]';
+      }
+      
+      text = text.replace(/\s+/g, ' ').trim();
+      
+      return {
+        text: text,
+        partner: partner,
+        timestamp: timestamp,
+        messageId: messageId || undefined
+      };
+    } catch (e) {
+      return null;
+    }
+  }
+  
+  // Parse date
+  function parseDate(dateStr) {
+    if (!dateStr) return null;
+    dateStr = dateStr.trim();
+    
+    try {
+      const match = dateStr.match(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})\s+(\d{1,2}):(\d{2})/);
+      if (match) {
+        const day = parseInt(match[1]);
+        let month = parseInt(match[2]) - 1;
+        let year = parseInt(match[3]);
+        
+        if (year < 100) {
+          year = year + (year > 50 ? 1900 : 2000);
+        }
+        
+        const hours = parseInt(match[4]);
+        const minutes = parseInt(match[5]);
+        
+        return new Date(year, month, day, hours, minutes).getTime();
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+  
+  // Search within current talk
+  function performTalkSearch(query, talkId) {
+    window.InlineStorage.loadMessages().then((messages) => {
+      // First filter by talkId
+      const talkMessages = messages.filter(msg => msg.talkId == talkId);
+      
+      if (!talkMessages.length) {
+        window.InlineUI.renderEmptyState('no-index');
+        return;
+      }
+      
+      // Then filter by query
+      const queryLower = query.toLowerCase();
+      
+      const results = talkMessages.filter((msg) => {
+        const textMatch = msg.text && msg.text.toLowerCase().includes(queryLower);
+        const partnerMatch = msg.partner && msg.partner.toLowerCase().includes(queryLower);
+        return textMatch || partnerMatch;
+      });
+      
+      results.sort((a, b) => {
+        const timeA = a.timestamp || 0;
+        const timeB = b.timestamp || 0;
+        return timeB - timeA;
+      });
+      
+      const MAX_RESULTS = 200;
+      const totalCount = results.length;
+      const limited = results.slice(0, MAX_RESULTS);
+      
+      window.InlineUI.renderResults(limited, query, totalCount, MAX_RESULTS);
+    });
   }
   
   // Inject CSS
@@ -522,7 +899,7 @@
         }
       }
       
-      if (!text || text.length < 1) return null;
+      text = text.replace(/\s+/g, ' ').trim();
       
       return {
         text: text,

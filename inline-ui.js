@@ -14,8 +14,139 @@
 let resultsContainer = null;
 
 /**
- * Create and inject the search panel into the page
+ * Create and inject the search panel into a single talk page
+ * This panel only contains search input and message count
  */
+function createTalkSearchPanel() {
+  debugLog('UI', 'createTalkSearchPanel called');
+  
+  const existingPanel = document.getElementById('ls-talk-search-panel');
+  if (existingPanel) {
+    debugLog('UI', 'Talk panel already exists');
+    return {
+      searchInput: document.getElementById('ls-talk-searchInput'),
+      results: document.getElementById('ls-results'),
+    };
+  }
+  
+  // Find the navigation area - try multiple selectors for single talk page
+  let insertContainer = document.querySelector('#content .big_text');
+  
+  // For single talk pages, find a better insertion point - before first message or after .line
+  if (!insertContainer) {
+    insertContainer = document.querySelector('#content .line');
+  }
+  
+  // Fallback: find #content itself
+  if (!insertContainer) {
+    insertContainer = document.querySelector('#content');
+  }
+  
+  if (!insertContainer) {
+    console.log('[LS Search] Could not find container for talk panel');
+    return;
+  }
+  
+  // Get current talk ID from URL
+  const path = window.location.pathname;
+  const talkIdMatch = path.match(/^\/users\/my_talks(?:\/hide)?\/(\d+)\/?/);
+  const currentTalkId = talkIdMatch ? talkIdMatch[1] : null;
+  
+  // Get partner name from page title
+  let partnerName = '';
+  const titleLink = document.querySelector('#content h1 a');
+  if (titleLink) {
+    partnerName = titleLink.textContent.trim();
+  }
+  
+  // Create the search panel container (simplified - no buttons)
+  const panel = document.createElement('div');
+  panel.id = 'ls-talk-search-panel';
+  panel.className = 'ls-talk-search-panel';
+  
+  // Create stats for current conversation
+  const stats = document.createElement('div');
+  stats.className = 'ls-talk-stats';
+  stats.id = 'ls-talk-stats';
+  stats.innerHTML = `
+    <span class="ls-stat-label">Сообщений с </span>
+    <span id="ls-talk-partner" class="ls-stat-value">${escapeHtml(partnerName || 'собеседником')}</span>
+    <span class="ls-stat-label">:</span>
+    <span id="ls-talk-messageCount" class="ls-stat-value">0</span>
+  `;
+  
+  // Store current talk ID for filtering
+  panel.dataset.talkId = currentTalkId || '';
+  panel.dataset.partnerName = partnerName || '';
+  
+  // Create search input
+  const searchContainer = document.createElement('div');
+  searchContainer.className = 'ls-search-container';
+  
+  const searchInput = document.createElement('input');
+  searchInput.type = 'text';
+  searchInput.id = 'ls-talk-searchInput';
+  searchInput.className = 'ls-search-input';
+  searchInput.placeholder = 'Поиск в текущем диалоге...';
+  
+  searchContainer.appendChild(searchInput);
+  
+  // Create results container
+  const results = document.createElement('div');
+  results.id = 'ls-results';
+  results.className = 'ls-results';
+  
+  // Add all to panel
+  panel.appendChild(stats);
+  panel.appendChild(searchContainer);
+  panel.appendChild(results);
+
+  // Find the best insertion point - before first .user_message or after the container
+  const firstMessage = document.querySelector('.user_message');
+  const pagesDiv = document.getElementById('pages');
+  
+  if (firstMessage) {
+    // Make sure we're not inserting inside another element
+    // Insert as a sibling, not as a child
+    const parent = firstMessage.parentNode;
+    if (parent.id === 'content' || parent.classList.contains('user_message')) {
+      // Insert before first message in content
+      parent.insertBefore(panel, firstMessage);
+    } else {
+      parent.insertBefore(panel, firstMessage);
+    }
+  } else if (pagesDiv) {
+    // Insert before pagination
+    pagesDiv.parentNode.insertBefore(panel, pagesDiv);
+  } else if (insertContainer) {
+    // Fallback: insert after the container
+    insertContainer.parentNode.insertBefore(panel, insertContainer.nextSibling);
+  }
+  
+  resultsContainer = results;
+  
+  console.log('[LS Search] Talk search panel created, talkId:', currentTalkId);
+  
+  return {
+    searchInput,
+    results,
+    talkId: currentTalkId,
+    partnerName,
+  };
+}
+
+/**
+ * Update stats for single talk page.
+ * @param {number} count - Number of messages with current partner
+ * @param {string} partnerName - Name of the conversation partner
+ */
+function renderTalkStats(count, partnerName) {
+  const countEl = document.getElementById('ls-talk-messageCount');
+  const partnerEl = document.getElementById('ls-talk-partner');
+  
+  if (countEl) countEl.textContent = String(count);
+  if (partnerEl) partnerEl.textContent = escapeHtml(partnerName || 'собеседником');
+}
 function createSearchPanel() {
   debugLog('UI', 'createSearchPanel called');
   
@@ -401,7 +532,9 @@ function groupByPartner(messages) {
 // Export functions
 window.InlineUI = {
   createSearchPanel,
+  createTalkSearchPanel,
   renderStats,
+  renderTalkStats,
   renderLastIndexedAt,
   showStatus,
   showLoading,
