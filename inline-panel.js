@@ -35,9 +35,21 @@ function lsDebugLogPanel(section, message, data = null) {
     const path = window.location.pathname;
     lsDebugLogPanel('Init', 'Page path', { path: path });
     
+    // Check if this is a single talk page (e.g., /users/my_talks/12345/)
+    // We should NOT show the panel on individual talk pages
+    const isSingleTalk = /^(?:\/users\/my_talks(?:\/hide)?\/\d+\/?)(?:page\d+\/?)?$/.test(path);
+    
+    if (isSingleTalk) {
+      console.log('[LS Search] Single talk page, skipping panel');
+      lsDebugLogPanel('Init', 'Single talk page detected, skipping panel');
+      return;
+    }
+    
+    // Only show on talks list pages (not hidden)
+    // /users/my_talks/, /users/my_talks/page2/, etc.
     if (!path.startsWith('/users/my_talks/') || path.includes('/hide/')) {
-      console.log('[LS Search] Not on talks page, skipping');
-      lsDebugLogPanel('Init', 'Not on talks page, exiting');
+      console.log('[LS Search] Not on talks list page, skipping');
+      lsDebugLogPanel('Init', 'Not on talks list page, exiting');
       return;
     }
     
