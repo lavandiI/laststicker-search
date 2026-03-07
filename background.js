@@ -856,37 +856,58 @@ async function parseTalkHtmlWithPagination(html, talkUrl, tabId) {
               }
             }
 
-            // Get message text
-            let text = '';
-            if (textDiv) {
-              text = textDiv.textContent.trim();
-            } else {
-              const clone = el.cloneNode(true);
-              if (clone.querySelector('div')) {
-                clone.querySelectorAll('div').forEach(d => d.remove());
-              }
-              text = clone.textContent.trim();
+    // Get message text
+    let text = '';
+    if (textDiv) {
+      text = textDiv.textContent.trim();
+      
+      // Always extract image URLs and append to text
+      const images = textDiv.querySelectorAll('img');
+      if (images.length > 0) {
+        const imgSrcs = Array.from(images).map(img => {
+          const src = img.getAttribute('src') || img.getAttribute('data-src');
+          if (src) {
+            if (src.startsWith('data:image/')) {
+              const base64Match = src.match(/^data:image\/(\w+);base64,/);
+              const format = base64Match ? base64Match[1] : 'unknown';
+              return `[Base64 ${format}]`;
             }
-            
-            if (!text || text.length < 1) return null;
-            
-            text = text.replace(/\s+/g, ' ').trim();
-            
-            return {
-              text: text,
-              partner: partner,
-              timestamp: timestamp,
-              url: `https://laststicker.ru/users/my_talks/${talkId}/`,
-              talkId: talkId,
-              messageId: messageId || undefined
-            };
-            
-          } catch (e) {
-            return null;
+            return src;
           }
+          return '';
+        }).filter(Boolean);
+        if (imgSrcs.length > 0) {
+          const imageText = '[Image: ' + imgSrcs.join(', ') + ']';
+          text = text ? text + ' ' + imageText : imageText;
         }
-        
-        // Parse date string
+      }
+    } else {
+      const clone = el.cloneNode(true);
+      if (clone.querySelector('div')) {
+        clone.querySelectorAll('div').forEach(d => d.remove());
+      }
+      text = clone.textContent.trim();
+    }
+    
+    if (!text || text.length < 1) return null;
+    
+    text = text.replace(/\s+/g, ' ').trim();
+    
+    return {
+      text: text,
+      partner: partner,
+      timestamp: timestamp,
+      url: `https://laststicker.ru/users/my_talks/${talkId}/`,
+      talkId: talkId,
+      messageId: messageId || undefined
+    };
+    
+  } catch (e) {
+    return null;
+  }
+}
+
+// Parse date string
         function parseDateStr(dateStr) {
           if (!dateStr) return null;
           dateStr = dateStr.trim();
@@ -1067,6 +1088,26 @@ function parseUserMessageEl(el, defaultPartner, talkId) {
     let text = '';
     if (textDiv) {
       text = textDiv.textContent.trim();
+      
+      // If text is empty but there are images, use image info
+      if (!text) {
+        const images = textDiv.querySelectorAll('img');
+        if (images.length > 0) {
+          const imgSrcs = Array.from(images).map(img => {
+            const src = img.getAttribute('src') || img.getAttribute('data-src');
+            if (src) {
+              if (src.startsWith('data:image/')) {
+                const base64Match = src.match(/^data:image\/(\w+);base64,/);
+                const format = base64Match ? base64Match[1] : 'unknown';
+                return `[Base64 ${format}]`;
+              }
+              return src;
+            }
+            return '';
+          }).filter(Boolean);
+          text = '[Image: ' + imgSrcs.join(', ') + ']';
+        }
+      }
     } else {
       const clone = el.cloneNode(true);
       if (clone.querySelector('div')) {

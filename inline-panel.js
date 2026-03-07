@@ -293,6 +293,33 @@
     return result;
   }
   
+  function parseImagesFromHtml(htmlString) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlString, 'text/html');
+    const images = doc.querySelectorAll('img');
+    
+    return Array.from(images).map(img => {
+      const src = img.getAttribute('src');
+      
+      if (!src) {
+        return { type: 'image', src: null, description: '[Empty src]' };
+      }
+      
+      if (src.startsWith('data:image/')) {
+        const base64Match = src.match(/^data:image\/(\w+);base64,/);
+        const format = base64Match ? base64Match[1] : 'unknown';
+        const dataLength = src.length;
+        return { 
+          type: 'image', 
+          src: 'base64', 
+          description: `[Base64 ${format} ${dataLength} chars]`
+        };
+      }
+      
+      return { type: 'image', src: src, description: src };
+    });
+  }
+
   // Parse a message element
   function parseUserMessageFromElement(el, defaultPartner) {
     try {
@@ -355,21 +382,16 @@
       if (textDiv) {
         text = textDiv.textContent.trim();
         
-        // If text is empty but there are images, use image info
-        if (!text) {
-          const images = textDiv.querySelectorAll('img');
-          if (images.length > 0) {
-            const imgSrcs = Array.from(images).map(img => {
-              // Try to get meaningful part of URL
-              const src = img.src || img.getAttribute('data-src');
-              if (src) {
-                // Extract filename or ID from URL
-                const match = src.match(/\/([^\/]+)$/);
-                return match ? match[1] : src;
-              }
-              return '';
-            }).filter(Boolean);
-            text = '[Image: ' + imgSrcs.join(', ') + ']';
+        // Always extract image URLs and append to text
+        const htmlContent = textDiv.innerHTML;
+        const parsedImages = parseImagesFromHtml(htmlContent);
+        if (parsedImages.length > 0) {
+          const imgDescriptions = parsedImages
+            .map(img => img.description)
+            .filter(Boolean);
+          if (imgDescriptions.length > 0) {
+            const imageText = '[Image: ' + imgDescriptions.join(', ') + ']';
+            text = text ? text + ' ' + imageText : imageText;
           }
         }
       } else {
@@ -982,6 +1004,10 @@
   } else {
     // Small delay to ensure other scripts are ready
     setTimeout(init, 100);
+  }
+  
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { parseImagesFromHtml };
   }
   
 })();

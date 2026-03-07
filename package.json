@@ -3,15 +3,18 @@
   "version": "1.0.2",
   "private": true,
   "description": "Chrome Extension для индексации и поиска сообщений на laststicker.ru",
-  "scripts": {
+"scripts": {
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "test": "jest"
   },
-  "devDependencies": {
+"devDependencies": {
     "eslint": "^9.0.0",
     "eslint-config-prettier": "^9.0.0",
     "eslint-plugin-import": "^2.29.0",
+    "jest": "^29.7.0",
+    "jsdom": "^24.0.0",
     "prettier": "^3.2.0"
   }
 }

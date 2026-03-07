@@ -570,6 +570,27 @@ function parseUserMessage(el, defaultPartner) {
     let text = '';
     if (textDiv) {
       text = textDiv.textContent.trim();
+      
+      // Always extract image URLs and append to text
+      const images = textDiv.querySelectorAll('img');
+      if (images.length > 0) {
+        const imgSrcs = Array.from(images).map(img => {
+          const src = img.getAttribute('src') || img.getAttribute('data-src');
+          if (src) {
+            if (src.startsWith('data:image/')) {
+              const base64Match = src.match(/^data:image\/(\w+);base64,/);
+              const format = base64Match ? base64Match[1] : 'unknown';
+              return `[Base64 ${format}]`;
+            }
+            return src;
+          }
+          return '';
+        }).filter(Boolean);
+        if (imgSrcs.length > 0) {
+          const imageText = '[Image: ' + imgSrcs.join(', ') + ']';
+          text = text ? text + ' ' + imageText : imageText;
+        }
+      }
     } else {
       const clone = el.cloneNode(true);
       if (clone.querySelector('div')) {
