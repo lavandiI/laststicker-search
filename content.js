@@ -18,16 +18,27 @@ async function loadInlineDependencies() {
         return;
       }
       
-      // Wait for dependencies to load
-      setTimeout(() => {
-        if (window.InlineStorage && window.InlineUI) {
-          resolve();
-        } else {
-          reject(new Error('Dependencies not available'));
-        }
-      }, 500);
+      // Wait for dependencies to load with retry logic
+      waitForDependencies(0, 10, resolve, reject);
     });
   });
+}
+
+// Wait for dependencies with retry logic
+function waitForDependencies(attempt, maxAttempts, resolve, reject) {
+  if (window.InlineStorage && window.InlineUI) {
+    resolve();
+    return;
+  }
+  
+  if (attempt >= maxAttempts) {
+    reject(new Error('Dependencies not available'));
+    return;
+  }
+  
+  setTimeout(() => {
+    waitForDependencies(attempt + 1, maxAttempts, resolve, reject);
+  }, 200);
 }
 
 // Load dependencies and then inject inline-panel
@@ -72,6 +83,7 @@ async function loadInlinePanelScript() {
     return Promise.resolve();
   }
   
+  // Ask background to inject the panel
   return new Promise((resolve, reject) => {
     chrome.runtime.sendMessage({ action: 'injectInlinePanel' }, (response) => {
       if (chrome.runtime.lastError) {
@@ -80,16 +92,27 @@ async function loadInlinePanelScript() {
         return;
       }
       
-      // Wait a bit for panel to load
-      setTimeout(() => {
-        if (window.InlinePanelReady) {
-          resolve();
-        } else {
-          reject(new Error('InlinePanel still not ready after injection'));
-        }
-      }, 500);
+      // Wait for panel to load with retry logic
+      waitForInlinePanel(0, 10, resolve, reject);
     });
   });
+}
+
+// Wait for InlinePanelReady with retry logic
+function waitForInlinePanel(attempt, maxAttempts, resolve, reject) {
+  if (window.InlinePanelReady) {
+    resolve();
+    return;
+  }
+  
+  if (attempt >= maxAttempts) {
+    reject(new Error('InlinePanel still not ready after injection'));
+    return;
+  }
+  
+  setTimeout(() => {
+    waitForInlinePanel(attempt + 1, maxAttempts, resolve, reject);
+  }, 200);
 }
 
 // Initialize inline panel when DOM is ready

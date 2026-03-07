@@ -68,6 +68,7 @@ npm run format   # Запуск Prettier
 - Исправлены синтаксические ошибки в inline-panel.js и inline-ui.js (сломанные вызовы функций)
 - Добавлен флаг InlinePanelReady для корректной инициализации панели
 - Исправлена ошибка "InlinePanel still not ready after injection"
+- Добавлена логика повторных попыток (retry) при загрузке зависимостей и inline-panel (до 10 попыток с интервалом 200ms)
 
 #### Изменено
 - Заменена навигация через chrome.tabs.update на прямые fetch() вызовы при индексации
