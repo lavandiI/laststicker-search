@@ -47,10 +47,10 @@
 | [`manifest.json`](manifest.json:1) | Конфигурация расширения |
 | [`background.js`](background.js:1) | Service Worker (фоновый скрипт) |
 | [`content.js`](content.js:1) | Content script (извлечение сообщений со страницы) |
-| [`popup.js`](popup.js:1) | Логика popup-интерфейса |
 | [`inline-panel.js`](inline-panel.js:1) | Встроенная панель на странице |
 | [`inline-ui.js`](inline-ui.js:1) | UI-компоненты встроенной панели |
 | [`inline-storage.js`](inline-storage.js:1) | Работа с хранилищем для inline-панели |
+| [`inline-styles.css`](inline-styles.css:1) | Стили встроенной панели |
 
 ### Команды
 ```bash
@@ -63,12 +63,11 @@ npm run format   # Запуск Prettier
 
 ## История версий
 
-### [Unreleased]
+### [1.0.2] - 2026-03-07
 #### Добавлено
 - Добавлены иконки расширения всех размеров (16, 32, 48, 128px)
 
 #### Исправлено
-- Удален файл `nul` (зарезервированное имя в Windows), блокировавший загрузку расширения
 - Исправлены синтаксические ошибки в inline-panel.js и inline-ui.js (сломанные вызовы функций)
 - Добавлен флаг InlinePanelReady для корректной инициализации панели
 - Исправлена ошибка "InlinePanel still not ready after injection"
@@ -111,17 +110,18 @@ npm run format   # Запуск Prettier
 
 ---
 
-## Архитектура
+## Архив
 
 ```
 laststicker-search/
 ├── manifest.json           # manifest v3
 ├── background.js           # service worker
 ├── content.js              # content script
-├── popup.html/js/css       # popup UI
-├── inline-*.{js,css}       # inline panel
-├── storage.js              # storage utilities
-├── ui.js                   # UI utilities
+├── inline-panel.js         # встроенная панель
+├── inline-ui.js            # UI-компоненты панели
+├── inline-storage.js       # работа с хранилищем
+├── inline-styles.css       # стили панели
+├── icons/                  # иконки расширения
 ├── plans/                  # документация планов
 └── CHANGELOG.md            # этот файл
 ```

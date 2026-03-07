@@ -1,6 +1,6 @@
 {
   "name": "laststicker-search-extension",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "private": true,
   "description": "Chrome Extension для индексации и поиска сообщений на laststicker.ru",
   "scripts": {
