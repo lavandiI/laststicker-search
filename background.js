@@ -296,41 +296,35 @@ async function indexAllSectionsAsync(request, sender, sendResponse) {
   // Collect all messages in array
   let allMessages = [];
 
-  // First section: Navigate to page and extract (my_talks)
+  // First section: Use fetch() to get HTML and extract talk IDs (my_talks)
+  // Then fetch each talk page to get messages
   const firstSection = SECTIONS[0];
-  console.log(`[LastSticker Search] Navigating to ${firstSection.name}: ${baseUrl + firstSection.path}`);
+  console.log(`[LastSticker Search] Fetching ${firstSection.name} without navigation`);
   
-  await chrome.tabs.update(tab.id, { url: baseUrl + firstSection.path });
-  await new Promise(resolve => setTimeout(resolve, 4000));
-  
-  const updatedTab = await chrome.tabs.get(tab.id);
-  if (!updatedTab.url || updatedTab.url.includes('login')) {
-    sendResponse({ error: 'Требуется авторизация' });
-    return;
-  }
-  
-  console.log(`[LastSticker Search] Page loaded: ${updatedTab.url}`);
-
   try {
-    await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      files: ['content.js']
+    const response = await fetch(baseUrl + firstSection.path, {
+      credentials: 'include'
     });
-    console.log(`[LastSticker Search] Injected content script for ${firstSection.name}`);
+    
+    if (!response.ok) {
+      console.log(`[LastSticker Search] Failed to fetch ${firstSection.name}: ${response.status}`);
+    } else {
+      const html = await response.text();
+      console.log(`[LastSticker Search] Fetched ${firstSection.name}, extracting talk IDs from all pages...`);
+      
+      // Parse HTML and get talk IDs from all pages (with pagination)
+      const talkIds = await extractAllTalkIdsWithPagination(html, baseUrl + firstSection.path, tab.id);
+      console.log(`[LastSticker Search] Found ${talkIds.length} talks in ${firstSection.name} (all pages)`);
+      
+      // Fetch all messages from each talk
+      const talkMessages = await fetchAllHiddenTalkMessages(talkIds, baseUrl, tab.id);
+      console.log(`[LastSticker Search] Extracted ${talkMessages.length} messages from ${firstSection.name}`);
+      allMessages = allMessages.concat(talkMessages);
+    }
   } catch (e) {
-    console.error(`Error injecting script for ${firstSection.name}:`, e);
+    console.error(`Error fetching ${firstSection.name}:`, e);
   }
-
-  await new Promise(resolve => setTimeout(resolve, 500));
-
-  try {
-    const sectionMessages = await extractMessagesFromTab(tab.id);
-    console.log(`[LastSticker Search] Extracted ${sectionMessages.length} messages from ${firstSection.name}`);
-    allMessages = allMessages.concat(sectionMessages);
-  } catch (e) {
-    console.error(`Error indexing ${firstSection.name}:`, e);
-  }
-
+  
   // Second section: Use fetch() to get HTML without navigation (Скрытые)
   const hiddenSection = SECTIONS[1];
   console.log(`[LastSticker Search] Fetching ${hiddenSection.name} without navigation`);
@@ -376,10 +370,23 @@ async function indexAllSectionsAsync(request, sender, sendResponse) {
           }
         } catch (e) {}
         
-        // Merge with new messages
+        // Helper function to build unique key (same as inline-storage.js)
+        function buildKey(msg) {
+          const talkId = msg.talkId || '';
+          const messageId = msg.messageId || '';
+          if (talkId && messageId) {
+            return 'id::' + talkId + '::' + messageId;
+          }
+          const partner = msg.partner || '';
+          const text = msg.text || '';
+          const ts = msg.timestamp || '';
+          return 'legacy::' + partner + '::' + text + '::' + ts + '::' + talkId;
+        }
+        
+        // Merge with new messages using proper key
         const map = new Map();
-        existing.forEach(m => map.set(m.text + '|' + m.partner, m));
-        messages.forEach(m => map.set(m.text + '|' + m.partner, m));
+        existing.forEach(m => map.set(buildKey(m), m));
+        messages.forEach(m => map.set(buildKey(m), m));
         const merged = Array.from(map.values());
         
         localStorage.setItem('ls_search_messages', JSON.stringify(merged));
@@ -620,7 +627,11 @@ async function extractAllTalkIdsWithPagination(html, baseUrl, tabId) {
         const pageUrls = new Set();
         
         if (pagesRoot) {
-          const pageLinks = pagesRoot.querySelectorAll('a.page[href*="/users/my_talks/hide/"]');
+          // Determine section type based on baseUrl
+          const isHidden = baseUrl.includes('/hide/');
+          const hrefPattern = isHidden ? '/users/my_talks/hide/' : '/users/my_talks/page';
+          
+          const pageLinks = pagesRoot.querySelectorAll('a.page[href*="' + hrefPattern + '"]');
           pageLinks.forEach((link) => {
             const href = link.getAttribute('href');
             if (href) pageUrls.add(href);

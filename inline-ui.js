@@ -2,22 +2,9 @@
 // For embedding directly into the page
 
 // Debug logging function - saves to localStorage
-function lsDebugLog(section, message, data = null) {
-  const timestamp = new Date().toISOString();
-  const logEntry = { timestamp, section, message, data };
-  
-  try {
-    let logs = JSON.parse(localStorage.getItem('ls-debug-logs') || '[]');
-    logs.push(logEntry);
-    // Keep only last 50 entries
-    if (logs.length > 50) logs = logs.slice(-50);
-    localStorage.setItem('ls-debug-logs', JSON.stringify(logs));
-  } catch (e) {
-    // Ignore storage errors
+  function debugLog(section, message, data = null) {
+    // Debug logging disabled
   }
-  
-  console.log(`[LS-DEBUG] ${section}: ${message}`, data || '');
-}
 
 /**
  * @typedef {import('./inline-storage.js').StickerMessage} StickerMessage
@@ -30,12 +17,12 @@ let resultsContainer = null;
  * Create and inject the search panel into the page
  */
 function createSearchPanel() {
-  lsDebugLog('UI', 'createSearchPanel called');
+  debugLog('UI', 'createSearchPanel called');
   
   // Check if panel already exists
   const existingPanel = document.getElementById('ls-search-panel');
   if (existingPanel) {
-    lsDebugLog('UI', 'Panel already exists, returning existing elements');
+    debugLog('UI', 'Panel already exists, returning existing elements');
     // Return references to existing elements
     return {
       indexBtn: document.getElementById('ls-indexBtn'),
@@ -45,11 +32,11 @@ function createSearchPanel() {
     };
   }
   
-  lsDebugLog('UI', 'Panel does not exist, proceeding');
+  debugLog('UI', 'Panel does not exist, proceeding');
   
   // Find the navigation area - after "Архив" link
   const bigTextDiv = document.querySelector('#content .big_text');
-  lsDebugLog('UI', 'Looking for #content .big_text', { 
+  debugLog('UI', 'Looking for #content .big_text', { 
     found: !!bigTextDiv,
     html: bigTextDiv ? bigTextDiv.outerHTML.substring(0, 200) : 'NOT FOUND'
   });
@@ -65,15 +52,15 @@ function createSearchPanel() {
     
     for (const selector of alternatives) {
       const altEl = document.querySelector(selector);
-      lsDebugLog('UI', `Trying alternative selector: ${selector}`, { found: !!altEl });
+      debugLog('UI', `Trying alternative selector: ${selector}`, { found: !!altEl });
       if (altEl) {
-        lsDebugLog('UI', `Found element with selector: ${selector}`);
+        debugLog('UI', `Found element with selector: ${selector}`);
         break;
       }
     }
     
     console.log('[LS Search] Could not find navigation area');
-    lsDebugLog('UI', 'ERROR: Could not find any suitable container element');
+    debugLog('UI', 'ERROR: Could not find any suitable container element');
     return;
   }
   
@@ -82,39 +69,41 @@ function createSearchPanel() {
   panel.id = 'ls-search-panel';
   panel.className = 'ls-search-panel';
   
-  lsDebugLog('UI', 'Created panel element', { id: panel.id, className: panel.className });
+  debugLog('UI', 'Created panel element', { id: panel.id, className: panel.className });
   
   // Create controls (buttons + stats)
   const controls = document.createElement('div');
   controls.className = 'ls-search-controls';
   
   const indexBtn = document.createElement('button');
+  indexBtn.type = 'button';
   indexBtn.id = 'ls-indexBtn';
   indexBtn.className = 'ls-btn ls-btn-primary';
   indexBtn.textContent = 'Индексировать';
   indexBtn.title = 'Собрать все сообщения со страниц разговоров';
   
-  // Dispatch custom event for click
+  // Prevent default behavior
   indexBtn.addEventListener('click', function(e) {
-    console.log('[LS Search] indexBtn clicked!');
+    e.preventDefault();
     e.stopPropagation();
   });
   
-  lsDebugLog('UI', 'Created indexBtn', { id: indexBtn.id, text: indexBtn.textContent });
+  debugLog('UI', 'Created indexBtn', { id: indexBtn.id, text: indexBtn.textContent });
   
   const clearBtn = document.createElement('button');
+  clearBtn.type = 'button';
   clearBtn.id = 'ls-clearBtn';
   clearBtn.className = 'ls-btn ls-btn-danger';
   clearBtn.textContent = 'Очистить';
   clearBtn.title = 'Удалить все индексированные сообщения';
   
-  // Dispatch custom event for click
+  // Prevent default behavior
   clearBtn.addEventListener('click', function(e) {
-    console.log('[LS Search] clearBtn clicked!');
+    e.preventDefault();
     e.stopPropagation();
   });
   
-  lsDebugLog('UI', 'Created clearBtn', { id: clearBtn.id, text: clearBtn.textContent });
+  debugLog('UI', 'Created clearBtn', { id: clearBtn.id, text: clearBtn.textContent });
   
   const stats = document.createElement('div');
   stats.className = 'ls-stats';
@@ -162,7 +151,7 @@ function createSearchPanel() {
   panel.appendChild(results);
   
   // Insert after the big_text div (navigation)
-  lsDebugLog('UI', 'Inserting panel into DOM', {
+  debugLog('UI', 'Inserting panel into DOM', {
     parent: bigTextDiv.parentNode ? bigTextDiv.parentNode.tagName : 'unknown',
     nextSibling: bigTextDiv.nextSibling ? bigTextDiv.nextSibling.tagName : 'null'
   });
@@ -172,12 +161,12 @@ function createSearchPanel() {
   resultsContainer = results;
   
   console.log('[LS Search] Search panel created');
-  lsDebugLog('UI', 'Panel successfully inserted into DOM');
+  debugLog('UI', 'Panel successfully inserted into DOM');
   
   // Verify buttons exist in DOM
   const indexBtnInDom = document.getElementById('ls-indexBtn');
   const clearBtnInDom = document.getElementById('ls-clearBtn');
-  lsDebugLog('UI', 'Verifying buttons in DOM', {
+  debugLog('UI', 'Verifying buttons in DOM', {
     indexBtnFound: !!indexBtnInDom,
     clearBtnFound: !!clearBtnInDom,
     indexBtnVisible: indexBtnInDom ? (window.getComputedStyle(indexBtnInDom).display !== 'none') : false,

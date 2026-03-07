@@ -2,30 +2,8 @@
 // Injects search functionality directly into the page
 // Uses localStorage instead of chrome.storage
 
-// Debug logging function
-function lsDebugLogPanel(section, message, data = null) {
-  const timestamp = new Date().toISOString();
-  const logEntry = { timestamp, section, message, data };
-  
-  try {
-    let logs = JSON.parse(localStorage.getItem('ls-debug-logs') || '[]');
-    logs.push(logEntry);
-    if (logs.length > 50) logs = logs.slice(-50);
-    localStorage.setItem('ls-debug-logs', JSON.stringify(logs));
-  } catch (e) {}
-  
-  console.log(`[LS-DEBUG-PANEL] ${section}: ${message}`, data || '');
-}
-
 (function() {
   'use strict';
-  
-  // Prevent multiple initialization
-  if (window.InlinePanelReady) {
-    console.log('[LS Search] inline-panel already initialized, skipping');
-    return;
-  }
-  window.InlinePanelReady = true;
   
   // Wait for DOM and dependencies
   function init() {
@@ -33,7 +11,6 @@ function lsDebugLogPanel(section, message, data = null) {
     
     // Check if we're on the right page (my_talks)
     const path = window.location.pathname;
-    lsDebugLogPanel('Init', 'Page path', { path: path });
     
     // Check if this is a single talk page (e.g., /users/my_talks/12345/)
     // We should NOT show the panel on individual talk pages
@@ -41,7 +18,7 @@ function lsDebugLogPanel(section, message, data = null) {
     
     if (isSingleTalk) {
       console.log('[LS Search] Single talk page, skipping panel');
-      lsDebugLogPanel('Init', 'Single talk page detected, skipping panel');
+      console.log('Init', 'Single talk page detected, skipping panel');
       return;
     }
     
@@ -49,18 +26,12 @@ function lsDebugLogPanel(section, message, data = null) {
     // /users/my_talks/, /users/my_talks/page2/, etc.
     if (!path.startsWith('/users/my_talks/') || path.includes('/hide/')) {
       console.log('[LS Search] Not on talks list page, skipping');
-      lsDebugLogPanel('Init', 'Not on talks list page, exiting');
       return;
     }
     
     console.log('[LS Search] Initializing inline panel...');
-    lsDebugLogPanel('Init', 'On talks page, starting initialization');
     
     // Check if InlineStorage and InlineUI are available
-    lsDebugLogPanel('Init', 'Checking dependencies', {
-      InlineStorage: typeof window.InlineStorage,
-      InlineUI: typeof window.InlineUI
-    });
     
     // Wait for InlineStorage and InlineUI to be available
     let attempts = 0;
@@ -70,13 +41,13 @@ function lsDebugLogPanel(section, message, data = null) {
       attempts++;
       
       console.log('[LS Search] checkDependencies attempt', attempts, '/', maxAttempts, '- InlineStorage:', !!window.InlineStorage, 'InlineUI:', !!window.InlineUI);
-      lsDebugLogPanel('Deps', `Check attempt ${attempts}/${maxAttempts}`, {
+      console.log('Deps', `Check attempt ${attempts}/${maxAttempts}`, {
         InlineStorage: !!window.InlineStorage,
         InlineUI: !!window.InlineUI
       });
       
       if (window.InlineStorage && window.InlineUI) {
-        lsDebugLogPanel('Deps', 'Dependencies found, injecting styles');
+        console.log('Deps', 'Dependencies found, injecting styles');
         // Inject styles
         injectStyles();
         
@@ -85,11 +56,11 @@ function lsDebugLogPanel(section, message, data = null) {
         
         if (!elements) {
           console.log('[LS Search] Could not create panel');
-          lsDebugLogPanel('Init', 'ERROR: createSearchPanel returned null');
+          console.log('Init', 'ERROR: createSearchPanel returned null');
           return;
         }
         
-        lsDebugLogPanel('Init', 'Panel created successfully', {
+        console.log('Init', 'Panel created successfully', {
           hasIndexBtn: !!elements.indexBtn,
           hasClearBtn: !!elements.clearBtn,
           hasSearchInput: !!elements.searchInput
@@ -97,12 +68,15 @@ function lsDebugLogPanel(section, message, data = null) {
         
         // Initialize with stored data
         initPanel(elements);
+        
+        // Signal that panel is ready
+        window.InlinePanelReady = true;
       } else if (attempts < maxAttempts) {
-        lsDebugLogPanel('Deps', 'Dependencies not ready, retrying in 100ms');
+        console.log('Deps', 'Dependencies not ready, retrying in 100ms');
         setTimeout(checkDependencies, 100);
       } else {
         console.log('[LS Search] Dependencies not loaded');
-        lsDebugLogPanel('Deps', 'ERROR: Dependencies not loaded after max attempts');
+        console.log('Deps', 'ERROR: Dependencies not loaded after max attempts');
       }
     }
     
@@ -113,34 +87,34 @@ function lsDebugLogPanel(section, message, data = null) {
   function injectStyles() {
     const styleId = 'ls-inline-styles';
     if (document.getElementById(styleId)) {
-      lsDebugLogPanel('Styles', 'Styles already injected');
+      console.log('Styles', 'Styles already injected');
       return;
     }
     
-    lsDebugLogPanel('Styles', 'Injecting styles');
+    console.log('Styles', 'Injecting styles');
     
     const link = document.createElement('link');
     link.id = styleId;
     link.rel = 'stylesheet';
     link.href = chrome.runtime ? chrome.runtime.getURL('inline-styles.css') : 'inline-styles.css';
     
-    lsDebugLogPanel('Styles', 'CSS href', { href: link.href, hasChromeRuntime: !!chrome.runtime });
+    console.log('Styles', 'CSS href', { href: link.href, hasChromeRuntime: !!chrome.runtime });
     
     // For userscript without extension, try to load from same directory
     if (!chrome.runtime) {
       // Try to find the stylesheet in current directory
       const scripts = document.querySelectorAll('script[src*="inline-panel"]');
-      lsDebugLogPanel('Styles', 'Looking for inline-panel scripts', { found: scripts.length });
+      console.log('Styles', 'Looking for inline-panel scripts', { found: scripts.length });
       
       if (scripts.length > 0) {
         const baseUrl = scripts[0].src.replace(/[^\/]*$/, '');
         link.href = baseUrl + 'inline-styles.css';
-        lsDebugLogPanel('Styles', 'Using baseUrl for styles', { baseUrl, fullUrl: link.href });
+        console.log('Styles', 'Using baseUrl for styles', { baseUrl, fullUrl: link.href });
       }
     }
     
     document.head.appendChild(link);
-    lsDebugLogPanel('Styles', 'Styles link appended to head');
+    console.log('Styles', 'Styles link appended to head');
   }
   
   // Initialize the panel
@@ -178,7 +152,7 @@ function lsDebugLogPanel(section, message, data = null) {
       // Create new listener
       indexBtn._clickListener = onIndexClick;
       indexBtn.addEventListener('click', onIndexClick);
-      lsDebugLogPanel('Init', 'Attached click handler to indexBtn (overwritten)');
+      console.log('Init', 'Attached click handler to indexBtn (overwritten)');
     }
     
     if (clearBtn) {
@@ -189,7 +163,7 @@ function lsDebugLogPanel(section, message, data = null) {
       // Create new listener
       clearBtn._clickListener = onClearClick;
       clearBtn.addEventListener('click', onClearClick);
-      lsDebugLogPanel('Init', 'Attached click handler to clearBtn (overwritten)');
+      console.log('Init', 'Attached click handler to clearBtn (overwritten)');
     }
     
     if (searchInput && !searchInput._hasSearchListener) {
@@ -245,49 +219,21 @@ function lsDebugLogPanel(section, message, data = null) {
       }
     });
   }
-  
+   
   // Index button click handler
-  async function onIndexClick() {
-    console.log('[LS Search] onIndexClick called - DIRECT');
-    lsDebugLogPanel('Index', '=== onIndexClick CALLED (DIRECT) ===');
-    
+  async function onIndexClick(event) {
     const indexBtn = document.getElementById('ls-indexBtn');
     if (!indexBtn) {
-      lsDebugLogPanel('Index', 'ERROR: indexBtn not found in DOM');
       return;
     }
-    
-    lsDebugLogPanel('Index', 'indexBtn found', { disabled: indexBtn.disabled });
     
     indexBtn.disabled = true;
     indexBtn.textContent = 'Индексация...';
     
-    // Try to show loading
-    if (window.InlineUI && window.InlineUI.showLoading) {
-      window.InlineUI.showLoading();
-    } else {
-      lsDebugLogPanel('Index', 'ERROR: InlineUI.showLoading not available');
-    }
-    
-    lsDebugLogPanel('Index', 'Checking chrome.runtime');
-    
-    lsDebugLogPanel('Index', '=== START INDEXING ===', {
-      hasExtractAllMessages: typeof window.extractAllMessages === 'function',
-      InlineStorageAvailable: !!window.InlineStorage,
-      currentPath: window.location.pathname,
-      hasChromeRuntime: !!chrome.runtime
-    });
-    
     // Check if we're running as extension (has chrome.runtime) or as userscript
     if (chrome.runtime && chrome.runtime.id) {
-      lsDebugLogPanel('Index', 'Using background script for FULL indexing', {
-        runtimeId: chrome.runtime.id
-      });
-      
       // Use background script for full indexing (same as popup)
       await indexViaBackgroundScript();
-      
-      lsDebugLogPanel('Index', 'indexViaBackgroundScript returned');
       
       // Reset button and exit
       if (indexBtn) {
@@ -297,27 +243,18 @@ function lsDebugLogPanel(section, message, data = null) {
       return;
     }
     
-    lsDebugLogPanel('Index', 'No chrome.runtime - using fallback extraction');
+    console.log('Index', 'No chrome.runtime - using fallback extraction');
     
     try {
       // Use the content script extraction logic
       // Since we're in the page context, we can call the functions directly
       let messages = [];
       
-      // Check if extraction functions are available from content.js
-      lsDebugLogPanel('Index', 'Checking window.extractAllMessages', {
-        type: typeof window.extractAllMessages
-      });
-      
       if (typeof window.extractAllMessages === 'function') {
-        lsDebugLogPanel('Index', 'Using window.extractAllMessages - FULL extraction');
         messages = await window.extractAllMessages();
-        lsDebugLogPanel('Index', 'extractAllMessages returned', { count: messages.length });
       } else {
         // Fallback: try to extract from current page
-        lsDebugLogPanel('Index', 'Using FALLBACK - extractFromCurrentPage (PARTIAL)');
         messages = await extractFromCurrentPage();
-        lsDebugLogPanel('Index', 'extractFromCurrentPage returned', { count: messages.length });
       }
       
       // Merge with existing messages
@@ -339,13 +276,6 @@ function lsDebugLogPanel(section, message, data = null) {
       
       const allMessages = Array.from(messageMap.values());
       const now = Date.now();
-      
-      lsDebugLogPanel('Index', 'Final result', {
-        existingCount: existingMessages.length,
-        newCount: messages.length,
-        addedCount: addedCount,
-        totalInStorage: allMessages.length
-      });
       
       await window.InlineStorage.saveMessages(allMessages, { indexedAt: now });
       
@@ -379,24 +309,24 @@ function lsDebugLogPanel(section, message, data = null) {
   
   // Index via background script (full indexing like popup)
   async function indexViaBackgroundScript() {
-    lsDebugLogPanel('Index-BG', 'Starting indexViaBackgroundScript');
+    console.log('Index-BG', 'Starting indexViaBackgroundScript');
     
     return new Promise((resolve, reject) => {
-      lsDebugLogPanel('Index-BG', 'Sending indexAllSections request to background');
+      console.log('Index-BG', 'Sending indexAllSections request to background');
       
       chrome.runtime.sendMessage({ action: 'indexAllSections' }, (response) => {
         (async () => {
-          lsDebugLogPanel('Index-BG', 'Got response from background', { response: response ? 'exists' : 'null' });
+          console.log('Index-BG', 'Got response from background', { response: response ? 'exists' : 'null' });
           try {
             if (chrome.runtime.lastError) {
-              lsDebugLogPanel('Index-BG', 'Runtime error', { error: chrome.runtime.lastError.message });
+              console.log('Index-BG', 'Runtime error', { error: chrome.runtime.lastError.message });
               window.InlineUI.showStatus('Ошибка: ' + chrome.runtime.lastError.message, 'error');
               resolve();
               return;
             }
             
             if (response && response.error) {
-              lsDebugLogPanel('Index-BG', 'Response error', { error: response.error });
+              console.log('Index-BG', 'Response error', { error: response.error });
               window.InlineUI.showStatus(response.error, 'error');
               resolve();
               return;
@@ -406,7 +336,7 @@ function lsDebugLogPanel(section, message, data = null) {
               const newMessages = response.messages;
               const indexedSections = response.indexedSections || [];
               
-              lsDebugLogPanel('Index-BG', 'Indexed sections', {
+              console.log('Index-BG', 'Indexed sections', {
                 sections: indexedSections,
                 totalFromBackground: newMessages.length,
               });
@@ -431,7 +361,7 @@ function lsDebugLogPanel(section, message, data = null) {
               const allMessages = Array.from(messageMap.values());
               const now = Date.now();
               
-              lsDebugLogPanel('Index-BG', 'Final result', {
+              console.log('Index-BG', 'Final result', {
                 existingCount: existingMessages.length,
                 newCount: newMessages.length,
                 addedCount: addedCount,
@@ -441,7 +371,7 @@ function lsDebugLogPanel(section, message, data = null) {
               await window.InlineStorage.saveMessages(allMessages, { indexedAt: now });
               
               const stats = window.InlineStorage.getStats(allMessages);
-              lsDebugLogPanel('Index-BG', 'Stats after save', {
+              console.log('Index-BG', 'Stats after save', {
                 dialogsCount: stats.dialogsCount,
                 messagesCount: stats.messagesCount,
               });
@@ -458,17 +388,17 @@ function lsDebugLogPanel(section, message, data = null) {
               if (searchInput && searchInput.value.trim()) {
                 performSearch(searchInput.value.trim());
               } else {
-                window.InlineUI.renderEmptyState('no-query');
+              window.InlineUI.renderEmptyState('no-query');
               }
               
               resolve();
             } else {
-              lsDebugLogPanel('Index-BG', 'No messages in response');
+              console.log('Index-BG', 'No messages in response');
               window.InlineUI.showStatus('Не удалось извлечь сообщения', 'error');
               resolve();
             }
           } catch (err) {
-            lsDebugLogPanel('Index-BG', 'Error processing response', { error: err.message });
+            console.log('Index-BG', 'Error processing response', { error: err.message });
             console.error('[LS Search] Indexing error:', err);
             window.InlineUI.showStatus('Ошибка: ' + err.message, 'error');
             resolve();
