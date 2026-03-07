@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "LastSticker Search",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Индексация и поиск сообщений на laststicker.ru",
   "permissions": [
     "activeTab",
