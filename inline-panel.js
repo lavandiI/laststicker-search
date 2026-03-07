@@ -128,39 +128,38 @@
     let talkMessages = messages.filter(msg => msg.talkId == talkId);
     let messageCount = talkMessages.length;
     
-    // Check if we need to fetch more pages
-    // Count messages on current page from DOM
-    const currentPageMessages = document.querySelectorAll('.user_message').length;
-    const pagesDiv = document.getElementById('pages');
-    
-    // Always fetch additional pages to get complete conversation
-    console.log('[LS Search] Starting fetch for talkId:', talkId);
-    let additionalMessages = [];
-    try {
-      additionalMessages = await fetchAllTalkPages(talkId);
-    } catch (e) {
-      console.log('[LS Search] Error fetching additional pages:', e);
-    }
-    console.log('[LS Search] Total additional messages fetched:', additionalMessages.length);
-    
-    if (additionalMessages.length > 0) {
-      // Merge with existing messages - use text+timestamp for deduplication since messageId might not be unique
-      const existingTexts = new Set(talkMessages.map(m => `${m.text?.substring(0, 50)}_${m.timestamp}`));
-      const newMsgs = additionalMessages.filter(m => {
-        const key = `${m.text?.substring(0, 50)}_${m.timestamp}`;
-        return !existingTexts.has(key);
-      });
-      
-      if (newMsgs.length > 0) {
-        const allTalkMessages = [...talkMessages, ...newMsgs];
-        await window.InlineStorage.saveMessages([...messages, ...newMsgs], {});
-        talkMessages = allTalkMessages;
-        messageCount = allTalkMessages.length;
-        console.log('[LS Search] Added', newMsgs.length, 'new messages, total:', messageCount);
-        
-        // Update stats display with new count
-        window.InlineUI.renderTalkStats(messageCount, partnerName);
+    // Use cached messages if available, otherwise fetch from network
+    if (messageCount === 0) {
+      console.log('[LS Search] Starting fetch for talkId:', talkId);
+      let additionalMessages = [];
+      try {
+        additionalMessages = await fetchAllTalkPages(talkId);
+      } catch (e) {
+        console.log('[LS Search] Error fetching additional pages:', e);
       }
+      console.log('[LS Search] Total additional messages fetched:', additionalMessages.length);
+      
+      if (additionalMessages.length > 0) {
+        // Merge with existing messages - use text+timestamp for deduplication since messageId might not be unique
+        const existingTexts = new Set(talkMessages.map(m => `${m.text?.substring(0, 50)}_${m.timestamp}`));
+        const newMsgs = additionalMessages.filter(m => {
+          const key = `${m.text?.substring(0, 50)}_${m.timestamp}`;
+          return !existingTexts.has(key);
+        });
+        
+        if (newMsgs.length > 0) {
+          const allTalkMessages = [...talkMessages, ...newMsgs];
+          await window.InlineStorage.saveMessages([...messages, ...newMsgs], {});
+          talkMessages = allTalkMessages;
+          messageCount = allTalkMessages.length;
+          console.log('[LS Search] Added', newMsgs.length, 'new messages, total:', messageCount);
+          
+          // Update stats display with new count
+          window.InlineUI.renderTalkStats(messageCount, partnerName);
+        }
+      }
+    } else {
+      console.log('[LS Search] Using cached messages for talkId:', talkId, 'count:', messageCount);
     }
     
     // Update stats display
