@@ -247,7 +247,7 @@
     console.log('[LS Search] URLs to fetch:', Array.from(urlSet));
     
     const urls = Array.from(urlSet);
-    const BATCH_SIZE = 5;
+    const BATCH_SIZE = 10;
     
     for (let i = 0; i < urls.length; i += BATCH_SIZE) {
       const batch = urls.slice(i, i + BATCH_SIZE);

@@ -687,7 +687,7 @@ async function extractAllTalkIdsWithPagination(html, baseUrl, tabId) {
         const otherPages = Array.from(pageUrls).slice(0, 50);
         
         // Parallel fetch for pagination pages
-        const BATCH_SIZE = 10;
+        const BATCH_SIZE = 20;
         for (let i = 0; i < otherPages.length; i += BATCH_SIZE) {
           const batch = otherPages.slice(i, i + BATCH_SIZE);
           const batchResults = await Promise.all(
@@ -1010,7 +1010,7 @@ async function parseTalkHtmlWithPagination(html, talkUrl, tabId) {
         const otherUrls = Array.from(allUrls).filter(u => u !== url).slice(0, 30);
         
         // Parallel fetch for pagination pages
-        const BATCH_SIZE = 10;
+        const BATCH_SIZE = 20;
         for (let i = 0; i < otherUrls.length; i += BATCH_SIZE) {
           const batch = otherUrls.slice(i, i + BATCH_SIZE);
           const batchResults = await Promise.all(

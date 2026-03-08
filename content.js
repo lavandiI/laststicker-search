@@ -286,7 +286,7 @@ async function extractAllFromTalksList(doc) {
     
     const existingTalkIds = new Set(talks.map(t => t.talkId));
     
-    await fetchBatch(limitedPageUrls, 10, (html, rawUrl) => {
+    await fetchBatch(limitedPageUrls, 20, (html, rawUrl) => {
       const parser = new DOMParser();
       const pageDoc = parser.parseFromString(html, 'text/html');
       const pageTalkRows = pageDoc.querySelectorAll('#talks_table tr[id^="talk_"]');
@@ -310,7 +310,7 @@ async function extractAllFromTalksList(doc) {
   const limitedTalks = talks.slice(0, MAX_TALKS);
 
   // Fetch all talks in parallel batches
-  const BATCH_SIZE = 10;
+  const BATCH_SIZE = 20;
   for (let i = 0; i < limitedTalks.length; i += BATCH_SIZE) {
     const batch = limitedTalks.slice(i, i + BATCH_SIZE);
     const batchResults = await Promise.all(
@@ -499,7 +499,7 @@ async function fetchTalkPages(urls, defaultPartner, talkId) {
   const MAX_TALK_PAGES = 30;
   const limitedUrls = urls.slice(0, MAX_TALK_PAGES);
 
-  const allPageMessages = await fetchBatch(limitedUrls, 10, (html, rawUrl) => {
+  const allPageMessages = await fetchBatch(limitedUrls, 20, (html, rawUrl) => {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
     const absoluteUrl = new URL(rawUrl, window.location.origin).href;
