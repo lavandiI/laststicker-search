@@ -45,6 +45,9 @@
     // Only show on talks list pages (not hidden)
     if (!path.startsWith('/users/my_talks/') || path.includes('/hide/')) {
       console.log('[LS Search] Not on talks list page, skipping');
+      // Mark as ready even though we're not initializing the panel
+      // This prevents "InlinePanel still not ready" errors on non-supported pages
+      window.InlinePanelReady = true;
       return;
     }
     
@@ -66,6 +69,7 @@
         
         if (!elements) {
           console.log('[LS Search] Could not create panel');
+          window.InlinePanelReady = true;
           return;
         }
         
@@ -76,7 +80,8 @@
       } else if (attempts < maxAttempts) {
         setTimeout(checkDependencies, 100);
       } else {
-        console.log('[LS Search] Dependencies not loaded');
+        console.log('[LS Search] Dependencies not loaded, marking as ready anyway');
+        window.InlinePanelReady = true;
       }
     }
     
@@ -100,6 +105,7 @@
         
         if (!elements) {
           console.log('[LS Search] Could not create talk panel');
+          window.InlinePanelReady = true;
           return;
         }
         
@@ -110,7 +116,8 @@
       } else if (attempts < maxAttempts) {
         setTimeout(checkDependencies, 100);
       } else {
-        console.log('[LS Search] Dependencies not loaded');
+        console.log('[LS Search] Dependencies not loaded for talk page, marking as ready anyway');
+        window.InlinePanelReady = true;
       }
     }
     
