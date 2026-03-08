@@ -19,6 +19,29 @@ const ICONS_DISABLED = {
 
 const STORAGE_KEY = 'isEnabled';
 
+// Parallel fetch helper - processes URLs in batches with credentials
+async function fetchBatch(urls, concurrency = 10, processor = null) {
+  const results = [];
+  for (let i = 0; i < urls.length; i += concurrency) {
+    const batch = urls.slice(i, i + concurrency);
+    const batchResults = await Promise.all(
+      batch.map(async (url) => {
+        try {
+          const response = await fetch(url, { credentials: 'include' });
+          if (!response.ok) return null;
+          const text = await response.text();
+          return processor ? processor(text, url) : text;
+        } catch (e) {
+          console.error('Fetch error:', url, e);
+          return null;
+        }
+      })
+    );
+    results.push(...batchResults.filter(Boolean));
+  }
+  return results;
+}
+
 async function setExtensionIcon(enabled) {
   const icons = enabled ? ICONS_ENABLED : ICONS_DISABLED;
   try {
@@ -663,21 +686,27 @@ async function extractAllTalkIdsWithPagination(html, baseUrl, tabId) {
         
         const otherPages = Array.from(pageUrls).slice(0, 50);
         
-        for (const pageUrl of otherPages) {
-          try {
-            const pageResponse = await fetch(pageUrl, { credentials: 'include' });
-            if (!pageResponse.ok) continue;
-            
-            const pageHtml = await pageResponse.text();
-            const pageDoc = parser.parseFromString(pageHtml, 'text/html');
-            
-            const pageTalkIds = extractTalkIds(pageDoc);
-            allTalkIds.push(...pageTalkIds);
-            
-            console.log('[LS] Page', pageUrl, 'has', pageTalkIds.length, 'talks');
-          } catch (e) {
-            console.log('[LS] Error fetching page:', pageUrl, e);
-          }
+        // Parallel fetch for pagination pages
+        const BATCH_SIZE = 10;
+        for (let i = 0; i < otherPages.length; i += BATCH_SIZE) {
+          const batch = otherPages.slice(i, i + BATCH_SIZE);
+          const batchResults = await Promise.all(
+            batch.map(async (pageUrl) => {
+              try {
+                const pageResponse = await fetch(pageUrl, { credentials: 'include' });
+                if (!pageResponse.ok) return [];
+                const pageHtml = await pageResponse.text();
+                const pageDoc = parser.parseFromString(pageHtml, 'text/html');
+                const pageTalkIds = extractTalkIds(pageDoc);
+                console.log('[LS] Page', pageUrl, 'has', pageTalkIds.length, 'talks');
+                return pageTalkIds;
+              } catch (e) {
+                console.log('[LS] Error fetching page:', pageUrl, e);
+                return [];
+              }
+            })
+          );
+          batchResults.forEach(pageTalkIds => allTalkIds.push(...pageTalkIds));
         }
         
         return allTalkIds;
@@ -742,23 +771,28 @@ async function fetchAllHiddenTalkMessages(talkIds, baseUrl, tabId) {
   const MAX_TALKS = 2000;
   const limitedTalks = talkIds.slice(0, MAX_TALKS);
   
-  console.log(`[LastSticker Search] Fetching messages from ${limitedTalks.length} hidden talks`);
+  console.log(`[LastSticker Search] Fetching messages from ${limitedTalks.length} hidden talks in parallel`);
   
-  for (let i = 0; i < limitedTalks.length; i++) {
-    const talkId = limitedTalks[i];
-    
-    if (i % 10 === 0) {
-      console.log(`[LastSticker Search] Processing hidden talk ${i + 1}/${limitedTalks.length}`);
-    }
+  const BATCH_SIZE = 50;
+  for (let i = 0; i < limitedTalks.length; i += BATCH_SIZE) {
+    const batch = limitedTalks.slice(i, i + BATCH_SIZE);
+    console.log(`[LastSticker Search] Processing talks ${i + 1}-${Math.min(i + BATCH_SIZE, limitedTalks.length)} / ${limitedTalks.length}`);
     
     try {
-      const talkMessages = await fetchTalkMessages(talkId, baseUrl, tabId);
-      allMessages.push(...talkMessages);
+      const batchResults = await Promise.all(
+        batch.map(talkId => fetchTalkMessages(talkId, baseUrl, tabId))
+      );
+      batchResults.forEach(talkMessages => {
+        if (talkMessages && talkMessages.length) {
+          allMessages.push(...talkMessages);
+        }
+      });
     } catch (e) {
-      console.error(`Error fetching talk ${talkId}:`, e);
+      console.error(`Error fetching batch starting at ${i}:`, e);
     }
   }
   
+  console.log(`[LastSticker Search] Total messages from hidden talks: ${allMessages.length}`);
   return allMessages;
 }
 
@@ -975,17 +1009,24 @@ async function parseTalkHtmlWithPagination(html, talkUrl, tabId) {
         
         const otherUrls = Array.from(allUrls).filter(u => u !== url).slice(0, 30);
         
-        for (const pageUrl of otherUrls) {
-          try {
-            const pageResponse = await fetch(pageUrl, { credentials: 'include' });
-            if (!pageResponse.ok) continue;
-            
-            const pageHtml = await pageResponse.text();
-            const pageDoc = parser.parseFromString(pageHtml, 'text/html');
-            
-            messages.push(...extractMessagesFromDoc(pageDoc, partner, talkId));
-          } catch (e) {
-          }
+        // Parallel fetch for pagination pages
+        const BATCH_SIZE = 10;
+        for (let i = 0; i < otherUrls.length; i += BATCH_SIZE) {
+          const batch = otherUrls.slice(i, i + BATCH_SIZE);
+          const batchResults = await Promise.all(
+            batch.map(async (pageUrl) => {
+              try {
+                const pageResponse = await fetch(pageUrl, { credentials: 'include' });
+                if (!pageResponse.ok) return [];
+                const pageHtml = await pageResponse.text();
+                const pageDoc = parser.parseFromString(pageHtml, 'text/html');
+                return extractMessagesFromDoc(pageDoc, partner, talkId);
+              } catch (e) {
+                return [];
+              }
+            })
+          );
+          batchResults.forEach(pageMessages => messages.push(...pageMessages));
         }
         
         return { messages: messages };

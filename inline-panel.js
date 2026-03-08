@@ -246,37 +246,36 @@
     
     console.log('[LS Search] URLs to fetch:', Array.from(urlSet));
     
-    for (const rawUrl of urlSet) {
-      try {
-        // Use XHR instead of fetch for better compatibility
-        const response = await new Promise((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open('GET', rawUrl, true);
-          xhr.onload = () => resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, text: () => Promise.resolve(xhr.responseText) });
-          xhr.onerror = () => reject(new Error('Network error: ' + rawUrl));
-          xhr.send();
-        });
-        
-        console.log('[LS Search] Fetched URL:', rawUrl, 'status:', response.status);
-        if (!response.ok) continue;
-        
-        const html = await response.text();
-        
-        // Check if response contains actual content
-        if (!html || html.length < 1000) {
-          console.log('[LS Search] Empty or short response from', rawUrl);
-          continue;
-        }
-        
+    const urls = Array.from(urlSet);
+    const BATCH_SIZE = 5;
+    
+    for (let i = 0; i < urls.length; i += BATCH_SIZE) {
+      const batch = urls.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.all(
+        batch.map(rawUrl => {
+          return new Promise((resolve) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('GET', rawUrl, true);
+            xhr.onload = () => {
+              if (xhr.status >= 200 && xhr.status < 300 && xhr.responseText && xhr.responseText.length >= 1000) {
+                resolve({ html: xhr.responseText, url: rawUrl });
+              } else {
+                resolve(null);
+              }
+            };
+            xhr.onerror = () => resolve(null);
+            xhr.send();
+          });
+        })
+      );
+      
+      batchResults.filter(Boolean).forEach(({ html, url }) => {
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
-        
-        const pageMessages = extractMessagesFromTalkDocument(doc, currentPartnerName, talkId, rawUrl);
-        console.log('[LS Search] Got', pageMessages.length, 'messages from', rawUrl);
+        const pageMessages = extractMessagesFromTalkDocument(doc, currentPartnerName, talkId, url);
+        console.log('[LS Search] Got', pageMessages.length, 'messages from', url);
         allMessages.push(...pageMessages);
-      } catch (e) {
-        console.error('[LS Search] Error fetching talk page:', rawUrl, e);
-      }
+      });
     }
 
     return allMessages;

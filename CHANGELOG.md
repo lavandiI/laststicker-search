@@ -31,6 +31,13 @@
 
 ## [Unreleased]
 
+#### Изменено
+- Оптимизирована скорость индексации: все сетевые запросы теперь выполняются параллельно батчами вместо последовательного выполнения
+- Увеличен размер батча для загрузки диалогов до 50 параллельных запросов
+- Добавлена вспомогательная функция fetchBatch для параллельной загрузки URL с контролем параллельности
+- Оптимизированы: extractAllFromTalksList, fetchTalkPages (content.js), extractAllTalkIdsWithPagination, parseTalkHtmlWithPagination, fetchAllHiddenTalkMessages (background.js), fetchAllTalkPages (inline-panel.js)
+- Ожидаемое ускорение индексации: в 5-10 раз (особенно для большого количества диалогов)
+
 #### Исправлено
 - Исправлена ошибка "InlinePanel still not ready after injection" на неподдерживаемых страницах (auction, users/my_guests и др.)
 

@@ -3,6 +3,29 @@
 
 console.log('[LS Search] Content script starting...');
 
+// Parallel fetch helper - processes URLs in batches
+async function fetchBatch(urls, concurrency = 10, processor = null) {
+  const results = [];
+  for (let i = 0; i < urls.length; i += concurrency) {
+    const batch = urls.slice(i, i + concurrency);
+    const batchResults = await Promise.all(
+      batch.map(async (url) => {
+        try {
+          const response = await fetch(url);
+          if (!response.ok) return null;
+          const text = await response.text();
+          return processor ? processor(text, url) : text;
+        } catch (e) {
+          console.error('Fetch error:', url, e);
+          return null;
+        }
+      })
+    );
+    results.push(...batchResults.filter(Boolean));
+  }
+  return results;
+}
+
 // Load inline-panel dependencies - delegate to background script
 async function loadInlineDependencies() {
   // Check if already loaded by background script
@@ -256,48 +279,49 @@ async function extractAllFromTalksList(doc) {
     return isPaginatedPage && normalizedUrlPath === normalizedCurrentPath;
   });
 
-  // Fetch all pages if there are pagination links
+  // Fetch all pages if there are pagination links - parallel
   if (filteredPageUrls.length > 0) {
     const MAX_TALKS_PAGES = 20;
     const limitedPageUrls = filteredPageUrls.slice(0, MAX_TALKS_PAGES);
     
-    for (const rawUrl of limitedPageUrls) {
-      try {
-        const response = await fetch(rawUrl);
-        if (!response.ok) continue;
-        
-        const html = await response.text();
-        const parser = new DOMParser();
-        const pageDoc = parser.parseFromString(html, 'text/html');
-        
-        const pageTalkRows = pageDoc.querySelectorAll('#talks_table tr[id^="talk_"]');
-        pageTalkRows.forEach((row) => {
-          const idAttr = row.id || '';
-          const talkId = idAttr.replace('talk_', '').trim();
-          if (!talkId) return;
-          
-          // Avoid duplicates
-          if (!talks.find(t => t.talkId === talkId)) {
-            talks.push({
-              talkId,
-              url: `/users/my_talks/${talkId}/`,
-            });
-          }
-        });
-      } catch (e) {
-        console.error('Error fetching talks page:', rawUrl, e);
-      }
-    }
+    const existingTalkIds = new Set(talks.map(t => t.talkId));
+    
+    await fetchBatch(limitedPageUrls, 10, (html, rawUrl) => {
+      const parser = new DOMParser();
+      const pageDoc = parser.parseFromString(html, 'text/html');
+      const pageTalkRows = pageDoc.querySelectorAll('#talks_table tr[id^="talk_"]');
+      const newTalks = [];
+      pageTalkRows.forEach((row) => {
+        const idAttr = row.id || '';
+        const talkId = idAttr.replace('talk_', '').trim();
+        if (!talkId || existingTalkIds.has(talkId)) return;
+        existingTalkIds.add(talkId);
+        newTalks.push({ talkId, url: `/users/my_talks/${talkId}/` });
+      });
+      return newTalks;
+    }).then(newTalksArrays => {
+      newTalksArrays.forEach(newTalks => {
+        newTalks.forEach(t => talks.push(t));
+      });
+    });
   }
 
   const MAX_TALKS = 2000;
   const limitedTalks = talks.slice(0, MAX_TALKS);
 
-  for (const talk of limitedTalks) {
-    const fullMessages = await fetchFullTalkConversation(talk.talkId, talk.url, isHidden);
-    if (fullMessages && fullMessages.length) {
-      messages.push(...fullMessages);
-    }
+  // Fetch all talks in parallel batches
+  const BATCH_SIZE = 10;
+  for (let i = 0; i < limitedTalks.length; i += BATCH_SIZE) {
+    const batch = limitedTalks.slice(i, i + BATCH_SIZE);
+    const batchResults = await Promise.all(
+      batch.map(talk => fetchFullTalkConversation(talk.talkId, talk.url, isHidden))
+    );
+    batchResults.forEach(fullMessages => {
+      if (fullMessages && fullMessages.length) {
+        messages.push(...fullMessages);
+      }
+    });
+    console.log(`[LS] Processed talks ${i + 1}-${Math.min(i + BATCH_SIZE, limitedTalks.length)} / ${limitedTalks.length}`);
   }
 
   return messages;
@@ -472,36 +496,17 @@ async function fetchFullTalkConversation(talkId, talkUrl, isHidden) {
 }
 
 async function fetchTalkPages(urls, defaultPartner, talkId) {
-  const messages = [];
   const MAX_TALK_PAGES = 30;
   const limitedUrls = urls.slice(0, MAX_TALK_PAGES);
 
-  for (const rawUrl of limitedUrls) {
-    try {
-      const response = await fetch(rawUrl);
-      if (!response.ok) {
-        console.error('Failed to fetch talk page:', rawUrl, response.status);
-        continue;
-      }
+  const allPageMessages = await fetchBatch(limitedUrls, 10, (html, rawUrl) => {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const absoluteUrl = new URL(rawUrl, window.location.origin).href;
+    return extractMessagesFromTalkDocument(doc, defaultPartner, talkId, absoluteUrl);
+  });
 
-      const html = await response.text();
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, 'text/html');
-      const absoluteUrl = new URL(rawUrl, window.location.origin).href;
-
-      const pageMessages = extractMessagesFromTalkDocument(
-        doc,
-        defaultPartner,
-        talkId,
-        absoluteUrl,
-      );
-      messages.push(...pageMessages);
-    } catch (e) {
-      console.error('Error while fetching talk page:', rawUrl, e);
-    }
-  }
-
-  return messages;
+  return allPageMessages.flat();
 }
 
 // Parse a .user_message element
