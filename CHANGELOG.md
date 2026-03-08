@@ -33,42 +33,15 @@
 
 ---
 
-## Краткий справочник проекта
-
-> Chrome Extension для индексации и поиска сообщений на laststicker.ru
-
-### Технологии
-- **Тип**: Chrome Extension (Manifest V3)
-- **Язык**: JavaScript (ES6+)
-- **Лinting**: ESLint
-- **Форматирование**: Prettier
-- **Хранение**: chrome.storage.local
-- **Тестирование**: Jest
-
-### Основные файлы
-
-| Файл | Назначение |
-|------|------------|
-| [`manifest.json`](manifest.json:1) | Конфигурация расширения |
-| [`background.js`](background.js:1) | Service Worker (фоновый скрипт) |
-| [`content.js`](content.js:1) | Content script (извлечение сообщений со страницы) |
-| [`inline-panel.js`](inline-panel.js:1) | Встроенная панель на странице |
-| [`inline-ui.js`](inline-ui.js:1) | UI-компоненты встроенной панели |
-| [`inline-storage.js`](inline-storage.js:1) | Работа с хранилищем для inline-панели |
-| [`inline-styles.css`](inline-styles.css:1) | Стили встроенной панели |
-| [`tests/`](tests/) | Unit-тесты |
-
-### Команды
-```bash
-npm install      # Установка зависимостей
-npm run lint     # Запуск ESLint
-npm run format   # Запуск Prettier
-npm test         # Запуск Jest
-```
-
----
-
 ## История версий
+
+### [1.1.1] - 2026-03-08
+#### Изменено
+- Оптимизирована скорость индексации: все сетевые запросы теперь выполняются параллельно батчами вместо последовательного выполнения
+- Увеличен размер батча для загрузки диалогов до 50 параллельных запросов
+- Добавлена вспомогательная функция fetchBatch для параллельной загрузки URL с контролем параллельности
+- Оптимизированы: extractAllFromTalksList, fetchTalkPages (content.js), extractAllTalkIdsWithPagination, parseTalkHtmlWithPagination, fetchAllHiddenTalkMessages (background.js), fetchAllTalkPages (inline-panel.js)
+- Ожидаемое ускорение индексации: в 5-10 раз (особенно для большого количества диалогов)
 
 ### [1.1.0] - 2026-03-07
 #### Добавлено
@@ -92,18 +65,6 @@ npm test         # Запуск Jest
 - Заменена навигация через chrome.tabs.update на прямые fetch() вызовы при индексации
 - Улучшена скорость и надежность процесса индексации
 - Оптимизирована локальная индексация при входе в диалог: используются закэшированные сообщения из глобальной индексации вместо повторного сетевого запроса
-
-### [1.1.1] - 2026-03-08
-#### Изменено
-- Оптимизирована скорость индексации: все сетевые запросы теперь выполняются параллельно батчами вместо последовательного выполнения
-- Увеличен размер батча для загрузки диалогов до 50 параллельных запросов
-- Добавлена вспомогательная функция fetchBatch для параллельной загрузки URL с контролем параллельности
-- Оптимизированы: extractAllFromTalksList, fetchTalkPages (content.js), extractAllTalkIdsWithPagination, parseTalkHtmlWithPagination, fetchAllHiddenTalkMessages (background.js), fetchAllTalkPages (inline-panel.js)
-- Ожидаемое ускорение индексации: в 5-10 раз (особенно для большого количества диалогов)
-- Обновлены иконки в папке icons/black (16, 32, 48, 128px)
-
-#### Исправлено
-- Исправлена ошибка "InlinePanel still not ready after injection" на неподдерживаемых страницах (auction, users/my_guests и др.)
 
 ### [1.0.1] - 2026-03-07
 #### Исправлено
@@ -140,19 +101,60 @@ npm test         # Запуск Jest
 
 ## Архив
 
+Структура проекта (устаревшая):
+
 ```
 laststicker-search/
 ├── manifest.json           # manifest v3
 ├── background.js           # service worker
 ├── content.js              # content script
 ├── inline-panel.js         # встроенная панель
-├── inline-ui.js            # UI-компоненты панели
-├── inline-storage.js       # работа с хранилищем
-├── inline-styles.css       # стили панели
-├── icons/                  # иконки расширения
-├── plans/                  # документация планов
-└── CHANGELOG.md            # этот файл
+├── inline-ui.js           # UI-компоненты панели
+├── inline-storage.js      # работа с хранилищем
+├── inline-styles.css     # стили панели
+├── icons/                # иконки расширения
+├── tests/                # unit-тесты
+└── CHANGELOG.md          # этот файл
 ```
+
+---
+
+## Краткий справочник проекта
+
+> Chrome Extension для индексации и поиска сообщений на laststicker.ru
+
+### Технологии
+- **Тип**: Chrome Extension (Manifest V3)
+- **Язык**: JavaScript (ES6+)
+- **Лinting**: ESLint
+- **Форматирование**: Prettier
+- **Хранение**: chrome.storage.local
+- **Тестирование**: Jest
+
+### Основные файлы
+
+| Файл | Назначение |
+|------|------------|
+| [`manifest.json`](manifest.json:1) | Конфигурация расширения |
+| [`background.js`](background.js:1) | Service Worker (фоновый скрипт) |
+| [`content.js`](content.js:1) | Content script (извлечение сообщений со страницы) |
+| [`inline-panel.js`](inline-panel.js:1) | Встроенная панель на странице |
+| [`inline-ui.js`](inline-ui.js:1) | UI-компоненты встроенной панели |
+| [`inline-storage.js`](inline-storage.js:1) | Работа с хранилищем для inline-панели |
+| [`inline-styles.css`](inline-styles.css:1) | Стили встроенной панели |
+| [`tests/`](tests/) | Unit-тесты |
+
+### Команды
+```bash
+npm install      # Установка зависимостей
+npm run lint     # Запуск ESLint
+npm run format   # Запуск Prettier
+npm test         # Запуск Jest
+```
+
+---
+
+## Архив
 
 ## Контекст для ИИ-ассистента
 
