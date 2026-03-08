@@ -41,12 +41,10 @@
 - Добавлена вспомогательная функция fetchBatch для параллельной загрузки URL с контролем параллельности
 - Оптимизированы: extractAllFromTalksList, fetchTalkPages (content.js), extractAllTalkIdsWithPagination, parseTalkHtmlWithPagination, fetchAllHiddenTalkMessages (background.js), fetchAllTalkPages (inline-panel.js)
 - Ожидаемое ускорение индексации: в 5-10 раз (особенно для большого количества диалогов)
+- Обновлены иконки в папке icons/black (16, 32, 48, 128px)
 
 #### Исправлено
 - Исправлена ошибка "InlinePanel still not ready after injection" на неподдерживаемых страницах (auction, users/my_guests и др.)
-
-#### Изменено
-- Обновлены иконки в папке icons/black (16, 32, 48, 128px)
 
 ---
 
