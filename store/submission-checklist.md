@@ -53,7 +53,7 @@ https://github.com/lavandiI/laststicker-search/releases/download/v1.2.1/laststic
    - название: `LastSticker Search`;
    - краткое описание из `store/listing-ru.md`;
    - подробное описание;
-   - категория: Productivity;
+   - категория: Tools (группа Productivity);
    - язык: Русский;
    - иконка 128×128 уже внутри ZIP.
 5. Загрузить скриншоты.
