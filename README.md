@@ -4,6 +4,8 @@
 
 **Текущая версия:** 1.2.0 · [CHANGELOG](CHANGELOG.md)
 
+[![CI](https://github.com/lavandiI/laststicker-search/actions/workflows/ci.yml/badge.svg)](https://github.com/lavandiI/laststicker-search/actions/workflows/ci.yml)
+
 Репозиторий: https://github.com/lavandiI/laststicker-search
 
 ### Возможности
