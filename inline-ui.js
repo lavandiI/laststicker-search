@@ -158,8 +158,6 @@ function createSearchPanel() {
     return {
       indexBtn: document.getElementById('ls-indexBtn'),
       cancelBtn: document.getElementById('ls-cancelBtn'),
-      exportBtn: document.getElementById('ls-exportBtn'),
-      importBtn: document.getElementById('ls-importBtn'),
       clearBtn: document.getElementById('ls-clearBtn'),
       searchInput: document.getElementById('ls-searchInput'),
       results: document.getElementById('ls-results'),
@@ -251,20 +249,6 @@ function createSearchPanel() {
     e.stopPropagation();
   });
 
-  const exportBtn = document.createElement('button');
-  exportBtn.type = 'button';
-  exportBtn.id = 'ls-exportBtn';
-  exportBtn.className = 'ls-btn ls-btn-secondary';
-  exportBtn.textContent = 'Экспорт';
-  exportBtn.title = 'Скачать индекс в JSON';
-
-  const importBtn = document.createElement('button');
-  importBtn.type = 'button';
-  importBtn.id = 'ls-importBtn';
-  importBtn.className = 'ls-btn ls-btn-secondary';
-  importBtn.textContent = 'Импорт';
-  importBtn.title = 'Загрузить индекс из JSON';
-
   const stats = document.createElement('div');
   stats.className = 'ls-stats';
   stats.innerHTML = `
@@ -285,8 +269,6 @@ function createSearchPanel() {
   
   controls.appendChild(indexBtn);
   controls.appendChild(cancelBtn);
-  controls.appendChild(exportBtn);
-  controls.appendChild(importBtn);
   controls.appendChild(clearBtn);
   controls.appendChild(stats);
   controls.appendChild(lastIndexed);
@@ -339,8 +321,6 @@ function createSearchPanel() {
   return {
     indexBtn,
     cancelBtn,
-    exportBtn,
-    importBtn,
     clearBtn,
     searchInput,
     results,
@@ -469,9 +449,7 @@ function renderResults(results, query, totalCount, limit, canLoadMore = false) {
               const messageUrl = msg.url
                 ? `${msg.url}${msg.messageId ? `#msg_${msg.messageId}` : ''}`
                 : '';
-              const href = messageUrl
-                ? ` href="${escapeAttribute(messageUrl)}" target="_blank" rel="noopener noreferrer"`
-                : '';
+              const href = messageUrl ? ` href="${escapeAttribute(messageUrl)}"` : '';
               const tag = messageUrl ? 'a' : 'div';
               const resultIndex = resultIndexes.get(msg);
 

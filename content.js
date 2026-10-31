@@ -881,11 +881,13 @@ function highlightHashMessage() {
   const target = document.querySelector(hash);
   if (!target) return;
 
-  target.classList.add('ls-message-target');
-  target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  // #msg_<id> is the header block; highlight the whole .user_message row.
+  const message = target.closest('.user_message') || target;
+  message.classList.add('ls-message-target');
+  message.scrollIntoView({ block: 'center', behavior: 'smooth' });
 
   setTimeout(() => {
-    target.classList.remove('ls-message-target');
+    message.classList.remove('ls-message-target');
   }, 6000);
 }
 

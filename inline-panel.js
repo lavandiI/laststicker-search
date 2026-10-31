@@ -647,15 +647,7 @@
 
   // Initialize the panel
   async function initPanel(elements) {
-    const {
-      indexBtn,
-      cancelBtn,
-      exportBtn,
-      importBtn,
-      clearBtn,
-      searchInput,
-      results,
-    } = elements;
+    const { indexBtn, cancelBtn, clearBtn, searchInput, results } = elements;
 
     attachIndexProgressListener();
 
@@ -712,22 +704,6 @@
       cancelBtn.addEventListener('click', onCancelClick);
     }
 
-    if (exportBtn) {
-      if (exportBtn._clickListener) {
-        exportBtn.removeEventListener('click', exportBtn._clickListener);
-      }
-      exportBtn._clickListener = onExportClick;
-      exportBtn.addEventListener('click', onExportClick);
-    }
-
-    if (importBtn) {
-      if (importBtn._clickListener) {
-        importBtn.removeEventListener('click', importBtn._clickListener);
-      }
-      importBtn._clickListener = onImportClick;
-      importBtn.addEventListener('click', onImportClick);
-    }
-    
     if (searchInput && !searchInput._hasSearchListener) {
       searchInput._hasSearchListener = true;
       let searchTimeout;
@@ -799,96 +775,6 @@
       });
       window.InlineUI.showStatus('Останавливаю индексацию...', 'success');
     }
-  }
-
-  // Download all indexed messages as JSON.
-  async function onExportClick(event) {
-    if (event) {
-      event.preventDefault();
-      event.stopPropagation();
-    }
-
-    try {
-      const messages = await window.InlineStorage.loadMessages();
-      const payload = {
-        version: 1,
-        exportedAt: Date.now(),
-        messages,
-      };
-      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `laststicker-messages-${new Date().toISOString().slice(0, 10)}.json`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-      window.InlineUI.showStatus(`Экспортировано ${messages.length} сообщений`, 'success');
-    } catch (e) {
-      console.error('[LS Search] Export error:', e);
-      window.InlineUI.showStatus('Ошибка экспорта: ' + e.message, 'error');
-    }
-  }
-
-  // Merge a JSON backup selected by the user.
-  function onImportClick(event) {
-    if (event) {
-      event.preventDefault();
-      event.stopPropagation();
-    }
-
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'application/json,.json';
-    input.style.display = 'none';
-
-    input.addEventListener('change', async () => {
-      const file = input.files && input.files[0];
-      input.remove();
-      if (!file) return;
-
-      try {
-        const text = await file.text();
-        const parsed = JSON.parse(text);
-        const imported = Array.isArray(parsed)
-          ? parsed
-          : parsed && Array.isArray(parsed.messages)
-            ? parsed.messages
-            : null;
-
-        if (!imported) {
-          throw new Error('в файле нет массива messages');
-        }
-
-        const normalized = imported.map((msg) => window.InlineStorage.normalizeMessage(msg));
-        const existing = await window.InlineStorage.loadMessages();
-        const merged = window.InlineStorage.mergeMessages(existing, normalized);
-        const saved = await window.InlineStorage.saveMessages(merged, { indexedAt: Date.now() });
-        if (!saved) {
-          throw new Error('не удалось сохранить данные');
-        }
-
-        const stats = window.InlineStorage.getStats(merged);
-        window.InlineUI.renderStats(stats);
-        window.InlineUI.renderLastIndexedAt(Date.now());
-        window.InlineUI.showStatus(
-          `Импортировано: ${merged.length - existing.length} новых сообщений`,
-          'success',
-        );
-
-        const searchInput = document.getElementById('ls-searchInput');
-        if (searchInput && searchInput.value.trim()) {
-          performSearch(searchInput.value.trim());
-        }
-      } catch (e) {
-        console.error('[LS Search] Import error:', e);
-        window.InlineUI.showStatus('Ошибка импорта: ' + e.message, 'error');
-      }
-    });
-
-    document.body.appendChild(input);
-    input.click();
   }
 
   // Index button click handler
@@ -1300,13 +1186,8 @@
         return;
       }
 
-      if (chrome.runtime && chrome.runtime.id) {
-        chrome.runtime.sendMessage({ action: 'openUrl', url: target }, () => {
-          void chrome.runtime.lastError;
-        });
-      } else {
-        window.open(target, '_blank', 'noopener');
-      }
+      // Navigate the current tab, not a new one.
+      window.location.href = target;
     } catch (e) {
       console.error('[LS Search] Could not resolve message URL:', e);
       window.InlineUI.showStatus('Ошибка поиска сообщения: ' + e.message, 'error');
