@@ -36,10 +36,10 @@ https://gist.github.com/lavandiI/cf987c5fabdf10f52d1b65d3698bb21d
 1. Главная панель с результатами поиска.
 2. Панель на странице диалога или прогресс индексации.
 
-Маленькое рекламное изображение:
+Рекламные изображения:
 
-- файл `store/promo-440x280.png`, размер 440×280;
-- загрузить в **Store listing → Graphic assets → Small promo tile**.
+- `store/promo-440x280.png` — 440×280 PNG, **Small promo tile**;
+- `store/marquee-1400x560.jpg` — 1400×560 JPEG, 24-бит без альфа-канала, **Marquee promo tile**.
 
 ## 3. Скачать ZIP
 
@@ -61,7 +61,7 @@ https://github.com/lavandiI/laststicker-search/releases/download/v1.2.1/laststic
    - категория: Tools (группа Productivity);
    - язык: Русский;
    - иконка 128×128 уже внутри ZIP.
-5. Загрузить скриншоты и `store/promo-440x280.png` в **Small promo tile**.
+5. Загрузить скриншоты, `store/promo-440x280.png` в **Small promo tile** и `store/marquee-1400x560.jpg` в **Marquee promo tile**.
 6. Заполнить **Privacy practices**:
    - single purpose;
    - обоснования `storage`, `scripting`, `tabs`, host permissions;

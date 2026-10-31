@@ -96,6 +96,12 @@ LastSticker Search — расширение для Chrome, которое пом
 
 Загрузить в дашборде: **Store listing → Graphic assets → Small promo tile**.
 
+## Marquee promo tile
+
+Файл: `store/marquee-1400x560.jpg` — 1400×560 JPEG, 24-бит, без альфа-канала.
+
+Загрузить в дашборде: **Store listing → Graphic assets → Marquee promo tile**.
+
 ## Скриншоты
 
 Нужен минимум один скриншот:
