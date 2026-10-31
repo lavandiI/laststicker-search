@@ -90,6 +90,12 @@ LastSticker Search — расширение для Chrome, которое пом
 
 **Support URL:** страница расширения в Chrome Web Store (после публикации)
 
+## Small promo tile
+
+Файл: `store/promo-440x280.png` — 440×280 PNG.
+
+Загрузить в дашборде: **Store listing → Graphic assets → Small promo tile**.
+
 ## Скриншоты
 
 Нужен минимум один скриншот:
