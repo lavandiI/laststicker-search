@@ -10,6 +10,7 @@
   let currentPartnerName = '';
   let indexProgressListenerAttached = false;
   let lastMainSearch = { query: '', results: [], limit: 200 };
+  const resolvedMessageTargets = new Map();
   
   // Check if this is a single talk page
   function isSingleTalkPath(path) {
@@ -653,8 +654,6 @@
       importBtn,
       clearBtn,
       searchInput,
-      partnerFilter,
-      imagesOnly,
       results,
     } = elements;
 
@@ -664,7 +663,6 @@
     const messages = await window.InlineStorage.loadMessages();
     const stats = window.InlineStorage.getStats(messages);
     window.InlineUI.renderStats(stats);
-    window.InlineUI.renderPartnerFilter(messages);
     
     const lastIndexedAt = await window.InlineStorage.loadLastIndexedAt();
     window.InlineUI.renderLastIndexedAt(lastIndexedAt);
@@ -752,29 +750,9 @@
       });
     }
 
-    const runFilteredSearch = () => {
-      const query = searchInput ? searchInput.value.trim() : '';
-      if (query) performSearch(query);
-    };
-
-    if (partnerFilter && !partnerFilter._hasFilterListener) {
-      partnerFilter._hasFilterListener = true;
-      partnerFilter.addEventListener('change', runFilteredSearch);
-    }
-
-    if (imagesOnly && !imagesOnly._hasFilterListener) {
-      imagesOnly._hasFilterListener = true;
-      imagesOnly.addEventListener('change', runFilteredSearch);
-    }
-
-    if (results && !results._hasLoadMoreListener) {
-      results._hasLoadMoreListener = true;
-      results.addEventListener('click', (e) => {
-        if (e.target.closest('#ls-loadMoreBtn')) {
-          e.preventDefault();
-          loadMoreMainSearch();
-        }
-      });
+    if (results && !results._hasResultsClickListener) {
+      results._hasResultsClickListener = true;
+      results.addEventListener('click', onResultsClick);
     }
 
     // Keyboard navigation
@@ -893,7 +871,6 @@
 
         const stats = window.InlineStorage.getStats(merged);
         window.InlineUI.renderStats(stats);
-        window.InlineUI.renderPartnerFilter(merged);
         window.InlineUI.renderLastIndexedAt(Date.now());
         window.InlineUI.showStatus(
           `Импортировано: ${merged.length - existing.length} новых сообщений`,
@@ -969,7 +946,6 @@
       
       const stats = window.InlineStorage.getStats(allMessages);
       window.InlineUI.renderStats(stats);
-      window.InlineUI.renderPartnerFilter(allMessages);
       window.InlineUI.renderLastIndexedAt(now);
       
       if (addedCount > 0) {
@@ -1069,8 +1045,7 @@
                 errors: errors.length,
               });
               window.InlineUI.renderStats(stats);
-              window.InlineUI.renderPartnerFilter(allMessages);
-              window.InlineUI.renderLastIndexedAt(now);
+                      window.InlineUI.renderLastIndexedAt(now);
 
               if (response.cancelled) {
                 window.InlineUI.showStatus(
@@ -1129,7 +1104,6 @@
       await window.InlineStorage.clearMessages();
       
       window.InlineUI.renderStats({ dialogsCount: 0, messagesCount: 0 });
-      window.InlineUI.renderPartnerFilter([]);
       window.InlineUI.renderLastIndexedAt(null);
       
       const searchInput = document.getElementById('ls-searchInput');
@@ -1154,18 +1128,11 @@
       }
 
       const queryLower = query.toLowerCase();
-      const partnerFilter = document.getElementById('ls-partnerFilter');
-      const imagesOnly = document.getElementById('ls-imagesOnly');
-      const selectedPartner = partnerFilter ? partnerFilter.value : '';
-      const onlyImages = imagesOnly ? imagesOnly.checked : false;
 
       const results = messages.filter((msg) => {
         const textMatch = msg.text && msg.text.toLowerCase().includes(queryLower);
         const partnerMatch = msg.partner && msg.partner.toLowerCase().includes(queryLower);
-        if (!(textMatch || partnerMatch)) return false;
-        if (selectedPartner && msg.partner !== selectedPartner) return false;
-        if (onlyImages && !(msg.text || '').includes('[Image:')) return false;
-        return true;
+        return textMatch || partnerMatch;
       });
 
       results.sort((a, b) => {
@@ -1194,6 +1161,159 @@
     if (!lastMainSearch.query) return;
     lastMainSearch.limit += 200;
     renderMainSearchResults();
+  }
+
+  function normalizeSearchText(text) {
+    return (text || '').replace(/\s+/g, ' ').trim();
+  }
+
+  function findMessageOnPage(html, pageUrl, msg) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const elements = doc.querySelectorAll('.user_message');
+    const wantedText = normalizeSearchText(msg.text);
+
+    for (const el of elements) {
+      const parsed = parseUserMessageFromElement(el, msg.partner);
+      if (!parsed) continue;
+
+      const candidateText = normalizeSearchText(parsed.text);
+      const exactText = candidateText === wantedText;
+      // Old background records did not append image markers to text messages.
+      const textWithImages = candidateText.startsWith(`${wantedText} [Image:`);
+      if (!exactText && !textWithImages) continue;
+
+      if (
+        msg.timestamp != null &&
+        parsed.timestamp != null &&
+        parsed.timestamp !== msg.timestamp
+      ) {
+        continue;
+      }
+
+      const idEl = el.querySelector('[id^="msg_"]');
+      const messageId = idEl ? idEl.id.replace(/^msg_/, '') : parsed.messageId;
+      if (messageId) {
+        return `${pageUrl}#msg_${messageId}`;
+      }
+    }
+
+    return null;
+  }
+
+  async function resolveMessageTarget(msg) {
+    if (!msg) return null;
+    if (msg.messageId && msg.url) {
+      return `${msg.url}#msg_${msg.messageId}`;
+    }
+    if (!msg.talkId) {
+      return msg.url || null;
+    }
+
+    const key = buildTalkMessageKey(msg);
+    if (resolvedMessageTargets.has(key)) {
+      return resolvedMessageTargets.get(key);
+    }
+
+    const baseUrl = `${window.location.origin}/users/my_talks/${msg.talkId}/`;
+    const baseHtml = await fetchTalkPageHtml(baseUrl);
+    if (!baseHtml) {
+      return msg.url || baseUrl;
+    }
+
+    const foundOnBase = findMessageOnPage(baseHtml, baseUrl, msg);
+    if (foundOnBase) {
+      resolvedMessageTargets.set(key, foundOnBase);
+      return foundOnBase;
+    }
+
+    const baseDoc = new DOMParser().parseFromString(baseHtml, 'text/html');
+    let lastLinkedPage = getLastLinkedTalkPage(baseDoc);
+    let maxPage = lastLinkedPage > 0 ? Math.min(200, lastLinkedPage + 1) : 200;
+    let failures = 0;
+
+    for (let page = 1; page <= maxPage; page++) {
+      const pageUrl = `${baseUrl}page${page}/`;
+      const html = await fetchTalkPageHtml(pageUrl);
+      if (!html) {
+        failures++;
+        if (failures >= 3) break;
+        continue;
+      }
+      failures = 0;
+
+      const found = findMessageOnPage(html, pageUrl, msg);
+      if (found) {
+        resolvedMessageTargets.set(key, found);
+        return found;
+      }
+
+      const pageDoc = new DOMParser().parseFromString(html, 'text/html');
+      if (!pageDoc.querySelector('.user_message')) {
+        break;
+      }
+
+      if (lastLinkedPage === 0) {
+        const hint = getLastLinkedTalkPage(pageDoc);
+        if (hint > 0) {
+          lastLinkedPage = hint;
+          maxPage = Math.min(200, lastLinkedPage + 1);
+        }
+      }
+    }
+
+    // At least open the dialog when the message cannot be located.
+    return baseUrl;
+  }
+
+  async function onResultsClick(event) {
+    const loadMore = event.target.closest('#ls-loadMoreBtn');
+    if (loadMore) {
+      event.preventDefault();
+      loadMoreMainSearch();
+      return;
+    }
+
+    const link = event.target.closest('.ls-result-item');
+    if (!link) return;
+
+    const index = Number(link.dataset.resultIndex);
+    const msg = lastMainSearch.results[index];
+    if (!msg) return;
+
+    // New records already have the exact page and message id.
+    if (msg.messageId && msg.url) {
+      return;
+    }
+
+    event.preventDefault();
+    if (link.dataset.resolving === '1') return;
+
+    link.dataset.resolving = '1';
+    link.style.opacity = '0.6';
+    window.InlineUI.showStatus('Ищу сообщение в диалоге...', 'success');
+
+    try {
+      const target = await resolveMessageTarget(msg);
+      if (!target) {
+        window.InlineUI.showStatus('Не удалось найти сообщение', 'error');
+        return;
+      }
+
+      if (chrome.runtime && chrome.runtime.id) {
+        chrome.runtime.sendMessage({ action: 'openUrl', url: target }, () => {
+          void chrome.runtime.lastError;
+        });
+      } else {
+        window.open(target, '_blank', 'noopener');
+      }
+    } catch (e) {
+      console.error('[LS Search] Could not resolve message URL:', e);
+      window.InlineUI.showStatus('Ошибка поиска сообщения: ' + e.message, 'error');
+    } finally {
+      delete link.dataset.resolving;
+      link.style.opacity = '';
+    }
   }
   
   // Fallback extraction from current page
@@ -1349,6 +1469,8 @@
       buildTalkMessageKey,
       dedupeTalkMessages,
       fetchAllTalkPages,
+      findMessageOnPage,
+      resolveMessageTarget,
     };
   }
   

@@ -873,6 +873,31 @@ function getRussianMonth(monthName) {
   return months[normalized] !== undefined ? months[normalized] : -1;
 }
 
+// Highlight the message from a #msg_<id> link opened by a search result.
+function highlightHashMessage() {
+  const hash = window.location.hash;
+  if (!/^#msg_\d+$/.test(hash)) return;
+
+  const target = document.querySelector(hash);
+  if (!target) return;
+
+  target.classList.add('ls-message-target');
+  target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+
+  setTimeout(() => {
+    target.classList.remove('ls-message-target');
+  }, 6000);
+}
+
+window.addEventListener('hashchange', highlightHashMessage);
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(highlightHashMessage, 300);
+  });
+} else {
+  setTimeout(highlightHashMessage, 300);
+}
+
 // Listen for messages from popup
 chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
   if (request.action === 'extractMessages') {

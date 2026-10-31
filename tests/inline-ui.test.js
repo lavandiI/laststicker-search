@@ -6,30 +6,15 @@ describe('inline-ui filters and result links', () => {
     window.InlineUI.createSearchPanel();
   });
 
-  test('creates the partner filter, import/export and cancel buttons', () => {
-    expect(document.getElementById('ls-partnerFilter')).toBeTruthy();
-    expect(document.getElementById('ls-imagesOnly')).toBeTruthy();
+  test('creates import/export and cancel buttons but no filters', () => {
     expect(document.getElementById('ls-exportBtn')).toBeTruthy();
     expect(document.getElementById('ls-importBtn')).toBeTruthy();
     expect(document.getElementById('ls-cancelBtn')).toBeTruthy();
+    expect(document.getElementById('ls-partnerFilter')).toBeNull();
+    expect(document.getElementById('ls-imagesOnly')).toBeNull();
   });
 
-  test('fills the partner filter with unique sorted partners', () => {
-    window.InlineUI.renderPartnerFilter([
-      { partner: 'Борис', text: 'a' },
-      { partner: 'Анна', text: 'b' },
-      { partner: 'Анна', text: 'c' },
-    ]);
-
-    const select = document.getElementById('ls-partnerFilter');
-    expect(Array.from(select.options).map((option) => option.textContent)).toEqual([
-      'Все собеседники',
-      'Анна',
-      'Борис',
-    ]);
-  });
-
-  test('renders a clickable result and a load-more button', () => {
+  test('renders a clickable result, its index and a load-more button', () => {
     window.InlineUI.renderResults(
       [
         {
@@ -52,6 +37,7 @@ describe('inline-ui filters and result links', () => {
       'https://www.laststicker.ru/users/my_talks/1/page2/#msg_10',
     );
     expect(link.getAttribute('target')).toBe('_blank');
+    expect(link.dataset.resultIndex).toBe('0');
     expect(document.getElementById('ls-loadMoreBtn')).toBeTruthy();
   });
 });

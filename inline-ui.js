@@ -162,8 +162,6 @@ function createSearchPanel() {
       importBtn: document.getElementById('ls-importBtn'),
       clearBtn: document.getElementById('ls-clearBtn'),
       searchInput: document.getElementById('ls-searchInput'),
-      partnerFilter: document.getElementById('ls-partnerFilter'),
-      imagesOnly: document.getElementById('ls-imagesOnly'),
       results: document.getElementById('ls-results'),
     };
   }
@@ -303,27 +301,7 @@ function createSearchPanel() {
   searchInput.className = 'ls-search-input';
   searchInput.placeholder = 'Поиск по сообщениям...';
 
-  const filters = document.createElement('div');
-  filters.className = 'ls-filters';
-
-  const partnerFilter = document.createElement('select');
-  partnerFilter.id = 'ls-partnerFilter';
-  partnerFilter.className = 'ls-filter-select';
-  partnerFilter.innerHTML = '<option value="">Все собеседники</option>';
-
-  const imagesLabel = document.createElement('label');
-  imagesLabel.className = 'ls-filter-checkbox';
-  const imagesOnly = document.createElement('input');
-  imagesOnly.type = 'checkbox';
-  imagesOnly.id = 'ls-imagesOnly';
-  imagesLabel.appendChild(imagesOnly);
-  imagesLabel.appendChild(document.createTextNode(' Только с изображениями'));
-
-  filters.appendChild(partnerFilter);
-  filters.appendChild(imagesLabel);
-
   searchContainer.appendChild(searchInput);
-  searchContainer.appendChild(filters);
   
   // Create results container
   const results = document.createElement('div');
@@ -365,8 +343,6 @@ function createSearchPanel() {
     importBtn,
     clearBtn,
     searchInput,
-    partnerFilter,
-    imagesOnly,
     results,
   };
 }
@@ -455,32 +431,6 @@ function renderEmptyState(reason) {
 }
 
 /**
- * Fill the partner filter with the partners present in the index.
- * @param {StickerMessage[]} messages
- */
-function renderPartnerFilter(messages) {
-  const select = document.getElementById('ls-partnerFilter');
-  if (!select) return;
-
-  const current = select.value;
-  const partners = Array.from(
-    new Set(messages.map((msg) => msg.partner).filter(Boolean)),
-  ).sort((a, b) => a.localeCompare(b, 'ru'));
-
-  select.innerHTML = '<option value="">Все собеседники</option>';
-  partners.forEach((partner) => {
-    const option = document.createElement('option');
-    option.value = partner;
-    option.textContent = partner;
-    select.appendChild(option);
-  });
-
-  if (partners.includes(current)) {
-    select.value = current;
-  }
-}
-
-/**
  * Render search results grouped by partner.
  * @param {StickerMessage[]} results
  * @param {string} query
@@ -498,7 +448,9 @@ function renderResults(results, query, totalCount, limit, canLoadMore = false) {
   
   const escapedQuery = query.trim();
   const groups = groupByPartner(results);
-  
+  const resultIndexes = new Map();
+  results.forEach((msg, index) => resultIndexes.set(msg, index));
+
   const parts = [];
   
   Object.keys(groups)
@@ -521,9 +473,10 @@ function renderResults(results, query, totalCount, limit, canLoadMore = false) {
                 ? ` href="${escapeAttribute(messageUrl)}" target="_blank" rel="noopener noreferrer"`
                 : '';
               const tag = messageUrl ? 'a' : 'div';
+              const resultIndex = resultIndexes.get(msg);
 
               return `
-                <${tag} class="ls-result-item"${href}>
+                <${tag} class="ls-result-item" data-result-index="${resultIndex}"${href}>
                   <div class="ls-result-message">${text}</div>
                   <div class="ls-result-date">${date}</div>
                 </${tag}>
@@ -643,6 +596,5 @@ window.InlineUI = {
   showStatus,
   showLoading,
   renderEmptyState,
-  renderPartnerFilter,
   renderResults,
 };

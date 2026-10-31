@@ -1,4 +1,9 @@
-const { fetchAllTalkPages, getTalkBasePath, dedupeTalkMessages } = require('../inline-panel');
+const {
+  fetchAllTalkPages,
+  getTalkBasePath,
+  dedupeTalkMessages,
+  resolveMessageTarget,
+} = require('../inline-panel');
 
 function messageHtml(id, text, partner = 'partner', date = '01.01.2026 10:00') {
   return (
@@ -139,5 +144,65 @@ describe('dedupeTalkMessages', () => {
     ];
 
     expect(dedupeTalkMessages(messages)).toHaveLength(2);
+  });
+});
+
+describe('resolveMessageTarget', () => {
+  const originalXHR = window.XMLHttpRequest;
+  const originalPath = window.location.pathname;
+
+  afterEach(() => {
+    window.XMLHttpRequest = originalXHR;
+    global.XMLHttpRequest = originalXHR;
+    window.history.replaceState({}, '', originalPath);
+  });
+
+  test('finds the page and message id for an old record without messageId', async () => {
+    window.history.replaceState({}, '', '/users/my_talks/');
+
+    const pages = {
+      'http://localhost/users/my_talks/999/': pageHtml(
+        [
+          messageHtml(10, 'first', 'partner', '11.07.2023 22:48'),
+          messageHtml(9, 'second', 'partner', '11.07.2023 22:49'),
+        ],
+        2,
+        '999',
+      ),
+      'http://localhost/users/my_talks/999/page1/': pageHtml([
+        messageHtml(8, 'third', 'partner', '11.07.2023 22:50'),
+        messageHtml(7, 'fourth', 'partner', '11.07.2023 22:51'),
+      ]),
+      'http://localhost/users/my_talks/999/page2/': pageHtml([
+        messageHtml(6, 'target', 'partner', '11.07.2023 22:52'),
+      ]),
+      'http://localhost/users/my_talks/999/page3/': pageHtml([]),
+    };
+
+    class MockXHR {
+      open(method, url) {
+        this.url = url;
+      }
+
+      send() {
+        setTimeout(() => {
+          this.status = pages[this.url] ? 200 : 404;
+          this.responseText = pages[this.url] || '';
+          this.onload();
+        }, 0);
+      }
+    }
+
+    window.XMLHttpRequest = MockXHR;
+    global.XMLHttpRequest = MockXHR;
+
+    const target = await resolveMessageTarget({
+      talkId: '999',
+      text: 'target',
+      partner: 'partner',
+      timestamp: null,
+    });
+
+    expect(target).toBe('http://localhost/users/my_talks/999/page2/#msg_6');
   });
 });

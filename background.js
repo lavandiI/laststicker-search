@@ -151,6 +151,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     sendResponse({ cancelled: indexInProgress });
     return false;
   }
+
+  if (request.action === 'openUrl' && typeof request.url === 'string') {
+    if (
+      request.url.startsWith('https://www.laststicker.ru/') ||
+      request.url.startsWith('http://www.laststicker.ru/')
+    ) {
+      chrome.tabs.create({ url: request.url });
+      sendResponse({ ok: true });
+    } else {
+      sendResponse({ error: 'Недопустимый URL' });
+    }
+    return false;
+  }
   
   if (request.action === 'extractMessages') {
     (async () => {
