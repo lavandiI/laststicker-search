@@ -69,8 +69,8 @@
 }
 
 .ls-btn-primary {
-  background-color: #1a3373;
-  color: white;
+  background-color: #d7e0ff;
+  color: #2444bc;
 }
 
 .ls-btn-secondary {
@@ -83,16 +83,16 @@
 }
 
 .ls-btn-primary:hover {
-  background-color: #0f1f4d;
+  background-color: #c6d2f7;
 }
 
 .ls-btn-danger {
-  background-color: #993333;
+  background-color: #cc0000;
   color: white;
 }
 
 .ls-btn-danger:hover {
-  background-color: #662222;
+  background-color: #a30000;
 }
 
 .ls-stats {
