@@ -6,7 +6,9 @@
 
 [![CI](https://github.com/lavandiI/laststicker-search/actions/workflows/ci.yml/badge.svg)](https://github.com/lavandiI/laststicker-search/actions/workflows/ci.yml)
 
-Репозиторий: https://github.com/lavandiI/laststicker-search
+Репозиторий: https://github.com/lavandiI/laststicker-search  
+Сайт: https://lavandii.github.io/laststicker-search/  
+Политика конфиденциальности: https://lavandii.github.io/laststicker-search/privacy.html
 
 ### Возможности
 

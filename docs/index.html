@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LastSticker Search — поиск по диалогам на laststicker.ru</title>
+  <meta name="description" content="Локальная индексация и поиск сообщений в ваших диалогах на laststicker.ru. Данные хранятся только в браузере.">
+  <link rel="icon" href="assets/icon128.png" type="image/png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="./">
+        <img src="assets/icon128.png" width="40" height="40" alt="">
+        <span>LastSticker Search</span>
+      </a>
+      <nav class="nav">
+        <a href="#features">Возможности</a>
+        <a href="#install">Установка</a>
+        <a href="privacy.html">Приватность</a>
+        <a href="https://github.com/lavandiI/laststicker-search/issues">Поддержка</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero container">
+      <img class="hero-image" src="assets/marquee.jpg" alt="LastSticker Search — поиск по сообщениям в диалогах">
+      <div class="hero-copy">
+        <div>
+          <p class="eyebrow">Chrome extension · Manifest V3</p>
+          <h1>Все ваши диалоги — в одном поиске</h1>
+          <p class="lead">
+            LastSticker Search индексирует ваши собственные диалоги на laststicker.ru
+            и помогает находить нужные сообщения за секунды. Индекс хранится локально
+            в браузере и никуда не отправляется.
+          </p>
+        </div>
+        <div class="hero-actions">
+          <a class="button primary" href="#install">Как установить</a>
+          <a class="button secondary" href="https://github.com/lavandiI/laststicker-search/releases/latest">Скачать ZIP</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="features" class="section container">
+      <h2>Возможности</h2>
+      <div class="feature-grid">
+        <article class="card">
+          <h3>Поиск по всем диалогам</h3>
+          <p>Ищите по тексту сообщений и именам собеседников в основной и архивной переписке.</p>
+        </article>
+        <article class="card">
+          <h3>Переход к сообщению</h3>
+          <p>Результат открывает нужную страницу диалога и подсвечивает найденное сообщение.</p>
+        </article>
+        <article class="card">
+          <h3>Инкрементальная индексация</h3>
+          <p>Неизменившиеся диалоги пропускаются, поэтому повторная индексация проходит быстрее.</p>
+        </article>
+        <article class="card">
+          <h3>Прогресс и отмена</h3>
+          <p>Видно, сколько диалогов обработано; длинную индексацию можно остановить.</p>
+        </article>
+        <article class="card">
+          <h3>Локальное хранение</h3>
+          <p>Сообщения хранятся в <code>chrome.storage.local</code>. Без аналитики, рекламы и внешних серверов.</p>
+        </article>
+        <article class="card">
+          <h3>Поиск внутри диалога</h3>
+          <p>На странице отдельного разговора панель ищет только по нему и показывает количество сообщений.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section container split">
+      <div>
+        <h2>Как это выглядит</h2>
+        <p class="muted">
+          Встроенная панель появляется прямо на странице диалогов. Никаких отдельных окон
+          и переключений между вкладками.
+        </p>
+        <ul class="checklist">
+          <li>Индексация своих диалогов</li>
+          <li>Поиск по тексту и собеседнику</li>
+          <li>Переход к точному сообщению</li>
+          <li>Статистика и дата последней индексации</li>
+        </ul>
+      </div>
+      <figure class="shot">
+        <img src="assets/screenshot.png" alt="Панель поиска LastSticker Search на странице диалогов" loading="lazy">
+        <figcaption>Демонстрационные данные</figcaption>
+      </figure>
+    </section>
+
+    <section id="install" class="section container">
+      <h2>Установка</h2>
+      <div class="install-grid">
+        <article class="card install-card">
+          <h3>Chrome Web Store</h3>
+          <p>После публикации расширение можно будет установить из магазина, и Chrome будет обновлять его автоматически.</p>
+          <span class="button disabled">Скоро в Chrome Web Store</span>
+        </article>
+        <article class="card install-card">
+          <h3>Вручную из ZIP</h3>
+          <p>Скачайте архив, распакуйте его и загрузите папку через <code>chrome://extensions</code> → «Загрузить распакованное расширение».</p>
+          <a class="button primary" href="https://github.com/lavandiI/laststicker-search/releases/latest">Скачать последний релиз</a>
+        </article>
+      </div>
+      <p class="note">
+        Для работы нужен вход в ваш аккаунт на laststicker.ru. Расширение не связано
+        с администрацией сайта. При индексации сайт может отметить открытые диалоги
+        прочитанными.
+      </p>
+    </section>
+
+    <section class="section container">
+      <div class="privacy-banner">
+        <div>
+          <h2>Приватность по умолчанию</h2>
+          <p>
+            Текст сообщений, имена собеседников и служебные идентификаторы хранятся
+            только в вашем браузере. Расширение не отправляет их разработчику или
+            третьим лицам.
+          </p>
+        </div>
+        <a class="button secondary" href="privacy.html">Политика конфиденциальности</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div>
+        <strong>LastSticker Search</strong>
+        <span class="muted">· версия 1.2.1</span>
+      </div>
+      <div class="footer-links">
+        <a href="privacy.html">Приватность</a>
+        <a href="https://github.com/lavandiI/laststicker-search">Исходный код</a>
+        <a href="https://github.com/lavandiI/laststicker-search/issues">Поддержка</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

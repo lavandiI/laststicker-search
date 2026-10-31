@@ -17,11 +17,11 @@ Chrome Web Store требует публичный URL, который откр�
 2. GitHub Pages в отдельном публичном репозитории.
 3. Собственный сайт/домен.
 
-Готовый публичный URL политики:
+Публичные URL после включения GitHub Pages:
 
-https://gist.github.com/lavandiI/cf987c5fabdf10f52d1b65d3698bb21d
-
-Его нужно вставить в дашборд Chrome Web Store.
+- главная: https://lavandii.github.io/laststicker-search/
+- политика: https://lavandii.github.io/laststicker-search/privacy.html
+- поддержка: https://github.com/lavandiI/laststicker-search/issues
 
 ## 2. Подготовить скриншоты
 

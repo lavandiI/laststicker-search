@@ -86,9 +86,11 @@ LastSticker Search — расширение для Chrome, которое пом
 
 **Data sale/transfer:** данные не продаются, не передаются третьим лицам и не используются для рекламы или оценки кредитоспособности.
 
-**Privacy policy URL:** https://gist.github.com/lavandiI/cf987c5fabdf10f52d1b65d3698bb21d
+**Homepage URL:** https://lavandii.github.io/laststicker-search/
 
-**Support URL:** страница расширения в Chrome Web Store (после публикации)
+**Privacy policy URL:** https://lavandii.github.io/laststicker-search/privacy.html
+
+**Support URL:** https://github.com/lavandiI/laststicker-search/issues
 
 ## Small promo tile
 
