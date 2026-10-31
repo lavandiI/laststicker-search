@@ -18,6 +18,8 @@ const ICONS_DISABLED = {
 };
 
 const STORAGE_KEY = 'isEnabled';
+let indexInProgress = false;
+let indexCancelRequested = false;
 
 // Parallel fetch helper - processes URLs in batches with credentials
 async function fetchBatch(urls, concurrency = 10, processor = null) {
@@ -143,6 +145,12 @@ async function injectInlinePanel(tabId) {
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log('[LS Search] Background received message:', request.action);
+
+  if (request.action === 'cancelIndex') {
+    indexCancelRequested = true;
+    sendResponse({ cancelled: indexInProgress });
+    return false;
+  }
   
   if (request.action === 'extractMessages') {
     (async () => {
@@ -197,7 +205,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse({ error: 'Расширение отключено' });
         return;
       }
-      indexAllSectionsAsync(request, sender, sendResponse);
+      indexAllSectionsAsync(request, sender, sendResponse).catch((e) => {
+        console.error('[LS Search] Indexing failed:', e);
+        indexInProgress = false;
+        indexCancelRequested = false;
+        sendResponse({ error: e.message });
+      });
     })();
     return true;
   }
@@ -319,131 +332,168 @@ const SECTIONS = [
 ];
 
 async function indexAllSectionsAsync(request, sender, sendResponse) {
-  const baseUrl = 'https://laststicker.ru';
+  if (indexInProgress) {
+    sendResponse({ error: 'Индексация уже выполняется' });
+    return;
+  }
 
+  indexInProgress = true;
+  indexCancelRequested = false;
+
+  // The non-www host redirects to /login/ and loses the signed-in page, so
+  // always use the canonical www origin for base pages and list pages.
+  const baseUrl = 'https://www.laststicker.ru';
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
   if (!tab || !tab.url || !tab.url.includes('laststicker.ru')) {
+    indexInProgress = false;
     sendResponse({ error: 'Откройте страницу laststicker.ru' });
     return;
   }
 
-  console.log('[LastSticker Search] Starting full indexing from inline-panel');
-  console.log('[LastSticker Search] Sections to index:', SECTIONS.map(s => s.name));
-  
+  const errors = [];
   let allMessages = [];
+  let totalTalks = 0;
+  let skippedTalks = 0;
+  let cancelled = false;
 
-  const firstSection = SECTIONS[0];
-  console.log(`[LastSticker Search] Fetching ${firstSection.name} without navigation`);
-  
   try {
-    const response = await fetch(baseUrl + firstSection.path, {
-      credentials: 'include'
-    });
-    
-    if (!response.ok) {
-      console.log(`[LastSticker Search] Failed to fetch ${firstSection.name}: ${response.status}`);
-    } else {
-      const html = await response.text();
-      console.log(`[LastSticker Search] Fetched ${firstSection.name}, extracting talk IDs from all pages...`);
-      
-      const talkIds = await extractAllTalkIdsWithPagination(html, baseUrl + firstSection.path, tab.id);
-      console.log(`[LastSticker Search] Found ${talkIds.length} talks in ${firstSection.name} (all pages)`);
-      
-      const talkMessages = await fetchAllHiddenTalkMessages(talkIds, baseUrl, tab.id);
-      console.log(`[LastSticker Search] Extracted ${talkMessages.length} messages from ${firstSection.name}`);
-      allMessages = allMessages.concat(talkMessages);
+    const storedCounts = await loadStoredTalkCounts();
+    const rows = [];
+    const seenTalkIds = new Set();
+
+    for (const section of SECTIONS) {
+      if (indexCancelRequested) {
+        cancelled = true;
+        break;
+      }
+
+      try {
+        const response = await fetchWithTimeout(baseUrl + section.path, {
+          credentials: 'include',
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const html = await response.text();
+        const sectionRows = await extractAllTalkRowsWithPagination(html, tab.id);
+
+        sectionRows.forEach((row) => {
+          const talkId = String(row.talkId);
+          if (seenTalkIds.has(talkId)) return;
+          seenTalkIds.add(talkId);
+          rows.push(row);
+        });
+
+        console.log(`[LastSticker Search] ${section.name}: ${sectionRows.length} talks`);
+      } catch (e) {
+        console.error(`Error fetching ${section.name}:`, e);
+        errors.push(`${section.name}: ${e.message}`);
+      }
     }
-  } catch (e) {
-    console.error(`Error fetching ${firstSection.name}:`, e);
-  }
-  
-  const hiddenSection = SECTIONS[1];
-  console.log(`[LastSticker Search] Fetching ${hiddenSection.name} without navigation`);
-  
-  try {
-    const response = await fetch(baseUrl + hiddenSection.path, {
-      credentials: 'include'
+
+    totalTalks = rows.length;
+
+    const toFetch = rows.filter((row) => {
+      if (row.messageCount === null) return true;
+
+      const storedCount = storedCounts.get(String(row.talkId));
+      if (storedCount === row.messageCount) {
+        skippedTalks++;
+        return false;
+      }
+      return true;
     });
-    
-    if (!response.ok) {
-      console.log(`[LastSticker Search] Failed to fetch ${hiddenSection.name}: ${response.status}`);
-    } else {
-      const html = await response.text();
-      console.log(`[LastSticker Search] Fetched ${hiddenSection.name}, extracting talk IDs from all pages...`);
-      
-      const talkIds = await extractAllTalkIdsWithPagination(html, baseUrl + hiddenSection.path, tab.id);
-      console.log(`[LastSticker Search] Found ${talkIds.length} talks in ${hiddenSection.name} (all pages)`);
-      
-      const hiddenMessages = await fetchAllHiddenTalkMessages(talkIds, baseUrl, tab.id);
-      console.log(`[LastSticker Search] Extracted ${hiddenMessages.length} messages from ${hiddenSection.name}`);
-      allMessages = allMessages.concat(hiddenMessages);
-    }
+
+    const progress = createProgressSender(tab.id);
+
+    progress({
+      done: 0,
+      total: toFetch.length,
+      messageCount: 0,
+      currentTalkId: null,
+      errors: errors.length,
+    });
+
+    allMessages = await fetchTalkMessagesForRows(toFetch, baseUrl, tab.id, {
+      onProgress: progress,
+      shouldCancel: () => indexCancelRequested,
+      onError: (message) => errors.push(message),
+    });
+
+    cancelled = indexCancelRequested;
   } catch (e) {
-    console.error(`Error fetching ${hiddenSection.name}:`, e);
+    console.error('[LastSticker Search] Indexing error:', e);
+    errors.push(e.message);
+  } finally {
+    indexInProgress = false;
+    indexCancelRequested = false;
   }
 
-  console.log(`[LastSticker Search] Total messages collected: ${allMessages.length}`);
-  console.log(`[LastSticker Search] Indexed sections: ${SECTIONS.map(s => s.name)}`);
-  
+  console.log(
+    `[LastSticker Search] Collected ${allMessages.length} messages, skipped ${skippedTalks} talks, errors: ${errors.length}`,
+  );
+
+  sendResponse({
+    messages: allMessages,
+    indexedSections: SECTIONS.map((s) => s.name),
+    totalTalks,
+    skippedTalks,
+    cancelled,
+    errors,
+  });
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = 30000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
   try {
-    await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: (messages) => {
-        let existing = [];
-        try {
-          const raw = localStorage.getItem('ls_search_messages');
-          if (raw) {
-            existing = JSON.parse(raw);
-          }
-        } catch (e) {
-          // Игнорируем повреждённые данные в localStorage
-        }
-        
-        function buildKey(msg) {
-          const talkId = msg.talkId || '';
-          const messageId = msg.messageId || '';
-          if (talkId && messageId) {
-            return 'id::' + talkId + '::' + messageId;
-          }
-          const partner = msg.partner || '';
-          const text = msg.text || '';
-          const ts = msg.timestamp || '';
-          return 'legacy::' + partner + '::' + text + '::' + ts + '::' + talkId;
-        }
-        
-        const map = new Map();
-        existing.forEach(m => map.set(buildKey(m), m));
-        messages.forEach(m => map.set(buildKey(m), m));
-        const merged = Array.from(map.values());
-        
-        localStorage.setItem('ls_search_messages', JSON.stringify(merged));
-        localStorage.setItem('ls_search_last_indexed_at', String(Date.now()));
-        console.log('[LastSticker Search] Saved messages to localStorage:', merged.length);
-        
-        const updateUI = () => {
-          if (typeof window.InlineStorage !== 'undefined' && typeof window.InlineUI !== 'undefined') {
-            const stats = window.InlineStorage.getStats(merged);
-            window.InlineUI.renderStats(stats);
-            window.InlineUI.renderLastIndexedAt(Date.now());
-            
-            if (typeof window.InlineUI.showStatus === 'function') {
-              window.InlineUI.showStatus('Индексация завершена: ' + stats.dialogsCount + ' диалогов, ' + stats.messagesCount + ' сообщений', 'success');
-            }
-          }
-        };
-        
-        updateUI();
-        setTimeout(updateUI, 500);
-        setTimeout(updateUI, 1500);
-      },
-      args: [allMessages]
-    });
-  } catch (e) {
-    console.error('Error saving to localStorage:', e);
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
   }
-  
-  sendResponse({ messages: allMessages, indexedSections: SECTIONS.map(s => s.name) });
+}
+
+async function loadStoredTalkCounts() {
+  try {
+    const result = await chrome.storage.local.get('ls_search_messages');
+    const raw = result.ls_search_messages;
+    if (!raw) return new Map();
+
+    const messages = JSON.parse(raw);
+    if (!Array.isArray(messages)) return new Map();
+
+    const counts = new Map();
+    messages.forEach((msg) => {
+      if (!msg || !msg.talkId) return;
+      const talkId = String(msg.talkId);
+      counts.set(talkId, (counts.get(talkId) || 0) + 1);
+    });
+
+    return counts;
+  } catch (e) {
+    console.error('[LS] Could not read stored talk counts:', e);
+    return new Map();
+  }
+}
+
+function createProgressSender(tabId) {
+  let lastSent = 0;
+
+  return (payload) => {
+    const now = Date.now();
+    if (payload.done < payload.total && now - lastSent < 500) {
+      return;
+    }
+    lastSent = now;
+
+    chrome.tabs.sendMessage(tabId, { action: 'indexProgress', ...payload }, () => {
+      // The tab may have navigated away; progress is best-effort.
+      void chrome.runtime.lastError;
+    });
+  };
 }
 
 async function extractMessagesFromHtml(html, baseUrl) {
@@ -602,85 +652,75 @@ function extractMessagesFromTab(tabId) {
   });
 }
 
-async function extractAllTalkIdsWithPagination(html, baseUrl, tabId) {
+async function extractAllTalkRowsWithPagination(html, tabId) {
   return new Promise((resolve) => {
     chrome.scripting.executeScript({
       target: { tabId: tabId },
-      func: async (htmlContent, baseUrl) => {
-        const allTalkIds = [];
-        
-        function extractTalkIds(doc) {
-          const talkIds = [];
-          const talkRows = doc.querySelectorAll('#talks_table tr[id^="talk_"]');
-          
-          talkRows.forEach((row) => {
-            const idAttr = row.id || '';
-            const talkId = idAttr.replace('talk_', '').trim();
-            if (talkId) {
-              talkIds.push(talkId);
-            }
+      func: async (htmlContent) => {
+        const rowsById = new Map();
+
+        function extractRows(doc) {
+          doc.querySelectorAll('#talks_table tr[id^="talk_"]').forEach((row) => {
+            const talkId = (row.id || '').replace('talk_', '').trim();
+            if (!talkId || rowsById.has(talkId)) return;
+
+            const match = row.innerHTML.match(/>(\d+)\s*\/\s*(\d+)</);
+            const messageCount = match ? Number(match[1]) + Number(match[2]) : null;
+            rowsById.set(talkId, { talkId, messageCount });
           });
-          
-          return talkIds;
         }
-        
+
         const parser = new DOMParser();
-        let doc = parser.parseFromString(htmlContent, 'text/html');
-        
-        allTalkIds.push(...extractTalkIds(doc));
-        
+        const doc = parser.parseFromString(htmlContent, 'text/html');
+        extractRows(doc);
+
         const pagesRoot = doc.querySelector('#pages');
         const pageUrls = new Set();
-        
+
         if (pagesRoot) {
-          const isHidden = baseUrl.includes('/hide/');
-          const hrefPattern = isHidden ? '/users/my_talks/hide/' : '/users/my_talks/page';
-          
-          const pageLinks = pagesRoot.querySelectorAll('a.page[href*="' + hrefPattern + '"]');
-          pageLinks.forEach((link) => {
+          pagesRoot.querySelectorAll('a.page[href*="/users/my_talks/"]').forEach((link) => {
             const href = link.getAttribute('href');
             if (href) pageUrls.add(href);
           });
         }
-        
-        console.log('[LS] Found pagination pages:', pageUrls.size);
-        
+
+        console.log('[LS] Found list pagination pages:', pageUrls.size);
+
         const otherPages = Array.from(pageUrls).slice(0, 50);
-        
-        // Parallel fetch for pagination pages
         const BATCH_SIZE = 20;
+
         for (let i = 0; i < otherPages.length; i += BATCH_SIZE) {
           const batch = otherPages.slice(i, i + BATCH_SIZE);
           const batchResults = await Promise.all(
             batch.map(async (pageUrl) => {
               try {
                 const pageResponse = await fetch(pageUrl, { credentials: 'include' });
-                if (!pageResponse.ok) return [];
-                const pageHtml = await pageResponse.text();
-                const pageDoc = parser.parseFromString(pageHtml, 'text/html');
-                const pageTalkIds = extractTalkIds(pageDoc);
-                console.log('[LS] Page', pageUrl, 'has', pageTalkIds.length, 'talks');
-                return pageTalkIds;
+                if (!pageResponse.ok) return null;
+                return await pageResponse.text();
               } catch (e) {
-                console.log('[LS] Error fetching page:', pageUrl, e);
-                return [];
+                console.log('[LS] Error fetching list page:', pageUrl, e);
+                return null;
               }
-            })
+            }),
           );
-          batchResults.forEach(pageTalkIds => allTalkIds.push(...pageTalkIds));
+
+          batchResults.filter(Boolean).forEach((pageHtml) => {
+            const pageDoc = parser.parseFromString(pageHtml, 'text/html');
+            extractRows(pageDoc);
+          });
         }
-        
-        return allTalkIds;
+
+        return Array.from(rowsById.values());
       },
-      args: [html, baseUrl]
+      args: [html],
     }, (results) => {
       if (chrome.runtime.lastError) {
-        console.log('Error extracting talk IDs with pagination:', chrome.runtime.lastError);
+        console.log('Error extracting talk rows with pagination:', chrome.runtime.lastError);
         resolve([]);
         return;
       }
-      
-      if (results && results[0] && results[0].result) {
+
+      if (results && results[0] && Array.isArray(results[0].result)) {
         resolve(results[0].result);
       } else {
         resolve([]);
@@ -727,64 +767,79 @@ async function extractTalkIdsFromHtml(html, tabId) {
   });
 }
 
-async function fetchAllHiddenTalkMessages(talkIds, baseUrl, tabId) {
+async function fetchTalkMessagesForRows(rows, baseUrl, tabId, options = {}) {
+  const {
+    onProgress = () => {},
+    shouldCancel = () => false,
+    onError = () => {},
+  } = options;
+
   const allMessages = [];
-  const MAX_TALKS = 2000;
-  const limitedTalks = talkIds.slice(0, MAX_TALKS);
-  
-  console.log(`[LastSticker Search] Fetching messages from ${limitedTalks.length} hidden talks in parallel`);
-  
-  const BATCH_SIZE = 50;
-  for (let i = 0; i < limitedTalks.length; i += BATCH_SIZE) {
-    const batch = limitedTalks.slice(i, i + BATCH_SIZE);
-    console.log(`[LastSticker Search] Processing talks ${i + 1}-${Math.min(i + BATCH_SIZE, limitedTalks.length)} / ${limitedTalks.length}`);
-    
-    try {
-      const batchResults = await Promise.all(
-        batch.map(talkId => fetchTalkMessages(talkId, baseUrl, tabId))
-      );
-      batchResults.forEach(talkMessages => {
-        if (talkMessages && talkMessages.length) {
-          allMessages.push(...talkMessages);
-        }
+  const BATCH_SIZE = 10;
+  let done = 0;
+
+  console.log(`[LastSticker Search] Fetching messages from ${rows.length} changed talks`);
+
+  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+    if (shouldCancel()) break;
+
+    const batch = rows.slice(i, i + BATCH_SIZE);
+    const results = await Promise.all(
+      batch.map((row) => fetchTalkMessages(row.talkId, baseUrl, tabId)),
+    );
+
+    results.forEach((result, index) => {
+      if (result.error) {
+        onError(result.error);
+      } else if (batch[index].messageCount > 0 && result.messages.length === 0) {
+        // A 200 response with no messages usually means the session expired
+        // and the site returned the login page instead of the dialog.
+        onError(
+          `${batch[index].talkId}: 0 сообщений, ожидалось ${batch[index].messageCount}`,
+        );
+      }
+
+      allMessages.push(...result.messages);
+      done++;
+
+      onProgress({
+        done,
+        total: rows.length,
+        messageCount: allMessages.length,
+        currentTalkId: batch[index].talkId,
       });
-    } catch (e) {
-      console.error(`Error fetching batch starting at ${i}:`, e);
+    });
+
+    if (i + BATCH_SIZE < rows.length) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
     }
   }
-  
-  console.log(`[LastSticker Search] Total messages from hidden talks: ${allMessages.length}`);
+
+  console.log(`[LastSticker Search] Total messages fetched: ${allMessages.length}`);
   return allMessages;
 }
 
 async function fetchTalkMessages(talkId, baseUrl, tabId) {
-  const messages = [];
   const talkUrl = `${baseUrl}/users/my_talks/${talkId}/`;
-  
-  console.log(`[LS] Fetching hidden talk: ${talkUrl}`);
-  
+
   try {
-    const response = await fetch(talkUrl, { credentials: 'include' });
-    console.log(`[LS] Response status for ${talkUrl}: ${response.status}`);
-    
+    const response = await fetchWithTimeout(talkUrl, { credentials: 'include' }, 30000);
     if (!response.ok) {
-      console.log(`[LS] Failed to fetch ${talkUrl}: ${response.status}`);
-      return messages;
+      throw new Error(`HTTP ${response.status}`);
     }
-    
+
     const html = await response.text();
-    
     const extracted = await parseTalkHtmlWithPagination(html, talkUrl, tabId);
-    
-    if (extracted && extracted.messages) {
-      messages.push(...extracted.messages);
+
+    if (!extracted || !Array.isArray(extracted.messages)) {
+      throw new Error('не удалось разобрать страницу');
     }
-    
+
+    return { messages: extracted.messages, error: null };
   } catch (e) {
-    console.error(`Error fetching talk ${talkId}:`, e);
+    console.error(`[LS] Error fetching talk ${talkId}:`, e);
+    return { messages: [], error: `${talkId}: ${e.message}` };
   }
-  
-  return messages;
 }
 
 async function parseTalkHtmlWithPagination(html, talkUrl, tabId) {
@@ -794,22 +849,22 @@ async function parseTalkHtmlWithPagination(html, talkUrl, tabId) {
       func: async (htmlContent, url) => {
         console.log('[LS] Parsing talk:', url);
         
-        function extractMessagesFromDoc(doc, defaultPartner, talkId) {
+        function extractMessagesFromDoc(doc, defaultPartner, talkId, pageUrl) {
           const messages = [];
           const messageElements = doc.querySelectorAll('.user_message');
           console.log('[LS] extractMessagesFromDoc: found elements:', messageElements.length);
-          
+
           messageElements.forEach((el) => {
-            const msg = parseUserMessageEl(el, defaultPartner, talkId);
+            const msg = parseUserMessageEl(el, defaultPartner, talkId, pageUrl);
             if (msg) {
               messages.push(msg);
             }
           });
-          
+
           return messages;
         }
-        
-        function parseUserMessageEl(el, defaultPartner, talkId) {
+
+        function parseUserMessageEl(el, defaultPartner, talkId, pageUrl) {
           try {
             const divs = el.querySelectorAll('div');
             let headerDiv = null;
@@ -832,9 +887,9 @@ async function parseTalkHtmlWithPagination(html, talkUrl, tabId) {
             if (!headerDiv) return null;
 
             let messageId = null;
-            const wrapper = headerDiv.parentNode;
-            if (wrapper && wrapper.id) {
-              const idMatch = String(wrapper.id).match(/^msg_(\d+)/);
+            const idSource = headerDiv.closest('[id^="msg_"]') || headerDiv.parentNode;
+            if (idSource && idSource.id) {
+              const idMatch = String(idSource.id).match(/^msg_(\d+)/);
               if (idMatch) {
                 messageId = idMatch[1];
               }
@@ -899,7 +954,7 @@ async function parseTalkHtmlWithPagination(html, talkUrl, tabId) {
               text: text,
               partner: partner,
               timestamp: timestamp,
-              url: `https://laststicker.ru/users/my_talks/${talkId}/`,
+              url: pageUrl || `https://laststicker.ru/users/my_talks/${talkId}/`,
               talkId: talkId,
               messageId: messageId || undefined
             };
@@ -953,7 +1008,7 @@ async function parseTalkHtmlWithPagination(html, talkUrl, tabId) {
         const match = url.match(/\/users\/my_talks\/(\d+)\//);
         const talkId = match ? match[1] : '';
         
-        const firstPageMessages = extractMessagesFromDoc(doc, partner, talkId);
+        const firstPageMessages = extractMessagesFromDoc(doc, partner, talkId, url);
         console.log('[LS] Parsed messages count:', firstPageMessages.length);
 
         const allMessages = [];
@@ -991,20 +1046,32 @@ async function parseTalkHtmlWithPagination(html, talkUrl, tabId) {
           });
         }
 
-        async function fetchPageHtml(pageUrl, retries = 1) {
-          try {
-            const response = await fetch(pageUrl, { credentials: 'include' });
-            if (!response.ok) {
-              throw new Error('HTTP ' + response.status);
+        async function fetchPageHtml(pageUrl, retries = 2) {
+          for (let attempt = 0; attempt <= retries; attempt++) {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 20000);
+
+            try {
+              const response = await fetch(pageUrl, {
+                credentials: 'include',
+                signal: controller.signal,
+              });
+              if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
+              }
+              return await response.text();
+            } catch (e) {
+              if (attempt === retries) {
+                console.log('[LS] Failed to fetch dialog page:', pageUrl, e.message);
+                return null;
+              }
+              await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+            } finally {
+              clearTimeout(timer);
             }
-            return await response.text();
-          } catch (e) {
-            if (retries > 0) {
-              return fetchPageHtml(pageUrl, retries - 1);
-            }
-            console.log('[LS] Failed to fetch dialog page:', pageUrl, e.message);
-            return null;
           }
+
+          return null;
         }
 
         addMessages(firstPageMessages);
@@ -1056,7 +1123,7 @@ async function parseTalkHtmlWithPagination(html, talkUrl, tabId) {
               reachedEnd = true;
               break;
             }
-            addMessages(extractMessagesFromDoc(pageDoc, partner, talkId));
+            addMessages(extractMessagesFromDoc(pageDoc, partner, talkId, result.pageUrl));
           }
 
           if (reachedEnd) break;
@@ -1133,9 +1200,9 @@ function parseUserMessageEl(el, defaultPartner, talkId) {
     if (!headerDiv) return null;
 
     let messageId = null;
-    const wrapper = headerDiv.parentNode;
-    if (wrapper && wrapper.id) {
-      const idMatch = String(wrapper.id).match(/^msg_(\d+)/);
+    const idSource = headerDiv.closest('[id^="msg_"]') || headerDiv.parentNode;
+    if (idSource && idSource.id) {
+      const idMatch = String(idSource.id).match(/^msg_(\d+)/);
       if (idMatch) {
         messageId = idMatch[1];
       }

@@ -369,20 +369,29 @@ function buildTalkPageUrl(talkBasePath, pageNumber = null) {
   return `${window.location.origin}${talkBasePath}${suffix}`;
 }
 
-async function fetchTalkPageHtml(url, retries = 1) {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+async function fetchTalkPageHtml(url, retries = 2) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
+
+    try {
+      const response = await fetch(url, { signal: controller.signal });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      return await response.text();
+    } catch (e) {
+      if (attempt === retries) {
+        console.error('[LS] Failed to fetch dialog page:', url, e);
+        return null;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+    } finally {
+      clearTimeout(timer);
     }
-    return await response.text();
-  } catch (e) {
-    if (retries > 0) {
-      return fetchTalkPageHtml(url, retries - 1);
-    }
-    console.error('[LS] Failed to fetch dialog page:', url, e);
-    return null;
   }
+
+  return null;
 }
 
 function buildTalkMessageKey(msg) {
@@ -613,11 +622,12 @@ function parseUserMessage(el, defaultPartner) {
     
     if (!headerDiv) return null;
 
-    // Extract messageId from wrapper id="msg_XXXXX" if available
+    // Extract messageId. The #msg_<id> element is usually headerDiv itself,
+    // so closest() is safer than parentNode.
     let messageId = null;
-    const wrapper = headerDiv.parentNode;
-    if (wrapper && wrapper.id) {
-      const idMatch = String(wrapper.id).match(/^msg_(\d+)/);
+    const idSource = headerDiv.closest('[id^="msg_"]') || headerDiv.parentNode;
+    if (idSource && idSource.id) {
+      const idMatch = String(idSource.id).match(/^msg_(\d+)/);
       if (idMatch) {
         messageId = idMatch[1];
       }
@@ -874,8 +884,10 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
         console.error('extractAllMessages error:', error);
         sendResponse({ messages: [] });
       });
+    return true;
   }
-  return true;
+
+  return false;
 });
 
 // Expose functions globally for inline-panel

@@ -73,6 +73,15 @@
   color: white;
 }
 
+.ls-btn-secondary {
+  background-color: #e6e6e6;
+  color: #333;
+}
+
+.ls-btn-secondary:hover {
+  background-color: #d4d4d4;
+}
+
 .ls-btn-primary:hover {
   background-color: #0f1f4d;
 }
@@ -141,6 +150,33 @@
 .ls-search-input::placeholder {
   color: #999;
   font-weight: normal;
+}
+
+.ls-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #333;
+}
+
+.ls-filter-select {
+  max-width: 220px;
+  padding: 4px 6px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  font-size: 12px;
+}
+
+.ls-filter-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  user-select: none;
 }
 
 .ls-results {
@@ -218,8 +254,11 @@
 }
 
 .ls-result-item {
+  display: block;
   padding: 8px 10px;
   border-bottom: 1px solid #eee;
+  color: inherit;
+  text-decoration: none;
   transition: background-color 0.15s;
 }
 
@@ -249,6 +288,11 @@
 }
 
 .ls-results-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
   text-align: center;
   color: #666;
   font-size: 11px;

@@ -157,8 +157,13 @@ function createSearchPanel() {
     // Return references to existing elements
     return {
       indexBtn: document.getElementById('ls-indexBtn'),
+      cancelBtn: document.getElementById('ls-cancelBtn'),
+      exportBtn: document.getElementById('ls-exportBtn'),
+      importBtn: document.getElementById('ls-importBtn'),
       clearBtn: document.getElementById('ls-clearBtn'),
       searchInput: document.getElementById('ls-searchInput'),
+      partnerFilter: document.getElementById('ls-partnerFilter'),
+      imagesOnly: document.getElementById('ls-imagesOnly'),
       results: document.getElementById('ls-results'),
     };
   }
@@ -235,7 +240,33 @@ function createSearchPanel() {
   });
   
   debugLog('UI', 'Created clearBtn', { id: clearBtn.id, text: clearBtn.textContent });
-  
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.id = 'ls-cancelBtn';
+  cancelBtn.className = 'ls-btn ls-btn-danger';
+  cancelBtn.textContent = 'Отмена';
+  cancelBtn.title = 'Остановить индексацию';
+  cancelBtn.style.display = 'none';
+  cancelBtn.addEventListener('click', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  });
+
+  const exportBtn = document.createElement('button');
+  exportBtn.type = 'button';
+  exportBtn.id = 'ls-exportBtn';
+  exportBtn.className = 'ls-btn ls-btn-secondary';
+  exportBtn.textContent = 'Экспорт';
+  exportBtn.title = 'Скачать индекс в JSON';
+
+  const importBtn = document.createElement('button');
+  importBtn.type = 'button';
+  importBtn.id = 'ls-importBtn';
+  importBtn.className = 'ls-btn ls-btn-secondary';
+  importBtn.textContent = 'Импорт';
+  importBtn.title = 'Загрузить индекс из JSON';
+
   const stats = document.createElement('div');
   stats.className = 'ls-stats';
   stats.innerHTML = `
@@ -255,6 +286,9 @@ function createSearchPanel() {
   lastIndexed.textContent = 'Ещё не индексировалось';
   
   controls.appendChild(indexBtn);
+  controls.appendChild(cancelBtn);
+  controls.appendChild(exportBtn);
+  controls.appendChild(importBtn);
   controls.appendChild(clearBtn);
   controls.appendChild(stats);
   controls.appendChild(lastIndexed);
@@ -268,8 +302,28 @@ function createSearchPanel() {
   searchInput.id = 'ls-searchInput';
   searchInput.className = 'ls-search-input';
   searchInput.placeholder = 'Поиск по сообщениям...';
-  
+
+  const filters = document.createElement('div');
+  filters.className = 'ls-filters';
+
+  const partnerFilter = document.createElement('select');
+  partnerFilter.id = 'ls-partnerFilter';
+  partnerFilter.className = 'ls-filter-select';
+  partnerFilter.innerHTML = '<option value="">Все собеседники</option>';
+
+  const imagesLabel = document.createElement('label');
+  imagesLabel.className = 'ls-filter-checkbox';
+  const imagesOnly = document.createElement('input');
+  imagesOnly.type = 'checkbox';
+  imagesOnly.id = 'ls-imagesOnly';
+  imagesLabel.appendChild(imagesOnly);
+  imagesLabel.appendChild(document.createTextNode(' Только с изображениями'));
+
+  filters.appendChild(partnerFilter);
+  filters.appendChild(imagesLabel);
+
   searchContainer.appendChild(searchInput);
+  searchContainer.appendChild(filters);
   
   // Create results container
   const results = document.createElement('div');
@@ -306,8 +360,13 @@ function createSearchPanel() {
   
   return {
     indexBtn,
+    cancelBtn,
+    exportBtn,
+    importBtn,
     clearBtn,
     searchInput,
+    partnerFilter,
+    imagesOnly,
     results,
   };
 }
@@ -396,13 +455,40 @@ function renderEmptyState(reason) {
 }
 
 /**
+ * Fill the partner filter with the partners present in the index.
+ * @param {StickerMessage[]} messages
+ */
+function renderPartnerFilter(messages) {
+  const select = document.getElementById('ls-partnerFilter');
+  if (!select) return;
+
+  const current = select.value;
+  const partners = Array.from(
+    new Set(messages.map((msg) => msg.partner).filter(Boolean)),
+  ).sort((a, b) => a.localeCompare(b, 'ru'));
+
+  select.innerHTML = '<option value="">Все собеседники</option>';
+  partners.forEach((partner) => {
+    const option = document.createElement('option');
+    option.value = partner;
+    option.textContent = partner;
+    select.appendChild(option);
+  });
+
+  if (partners.includes(current)) {
+    select.value = current;
+  }
+}
+
+/**
  * Render search results grouped by partner.
  * @param {StickerMessage[]} results
  * @param {string} query
  * @param {number} totalCount
  * @param {number} limit
+ * @param {boolean} [canLoadMore]
  */
-function renderResults(results, query, totalCount, limit) {
+function renderResults(results, query, totalCount, limit, canLoadMore = false) {
   if (!resultsContainer) return;
   
   if (!results.length) {
@@ -428,12 +514,19 @@ function renderResults(results, query, totalCount, limit) {
             .map((msg) => {
               const text = highlightText(msg.text || '', escapedQuery);
               const date = formatDate(msg.timestamp);
-              
+              const messageUrl = msg.url
+                ? `${msg.url}${msg.messageId ? `#msg_${msg.messageId}` : ''}`
+                : '';
+              const href = messageUrl
+                ? ` href="${escapeAttribute(messageUrl)}" target="_blank" rel="noopener noreferrer"`
+                : '';
+              const tag = messageUrl ? 'a' : 'div';
+
               return `
-                <div class="ls-result-item">
+                <${tag} class="ls-result-item"${href}>
                   <div class="ls-result-message">${text}</div>
                   <div class="ls-result-date">${date}</div>
-                </div>
+                </${tag}>
               `;
             })
             .join('')}
@@ -443,7 +536,14 @@ function renderResults(results, query, totalCount, limit) {
   
   if (totalCount > limit) {
     parts.push(
-      `<div class="ls-results-footer">Показаны первые ${limit} из ${totalCount} совпадений</div>`
+      `<div class="ls-results-footer">
+        Показаны первые ${limit} из ${totalCount} совпадений
+        ${
+          canLoadMore
+            ? '<button type="button" id="ls-loadMoreBtn" class="ls-btn ls-btn-secondary">Показать ещё</button>'
+            : ''
+        }
+      </div>`,
     );
   }
   
@@ -474,6 +574,10 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+function escapeAttribute(text) {
+  return escapeHtml(text).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 /**
@@ -539,5 +643,6 @@ window.InlineUI = {
   showStatus,
   showLoading,
   renderEmptyState,
+  renderPartnerFilter,
   renderResults,
 };

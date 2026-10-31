@@ -9,12 +9,12 @@ function messageHtml(id, text, partner = 'partner', date = '01.01.2026 10:00') {
   );
 }
 
-function pageHtml(messages, lastPage = 0) {
+function pageHtml(messages, lastPage = 0, talkId = '41292') {
   const pages = lastPage
     ? `<div id="pages">${Array.from(
         { length: lastPage },
         (_, index) =>
-          `<a href="/users/my_talks/41292/page${index + 1}/" class="page">${index + 2}</a>`,
+          `<a href="/users/my_talks/${talkId}/page${index + 1}/" class="page">${index + 2}</a>`,
       ).join('')}</div>`
     : '';
 
@@ -75,6 +75,47 @@ describe('fetchAllTalkPages', () => {
 
     expect(messages.map((message) => message.text)).toEqual(['one', 'two', 'three', 'four']);
     expect(requested.some((url) => url.endsWith('/page4/'))).toBe(false);
+  });
+
+  test('keeps messages with the same text and minute when IDs differ', async () => {
+    window.history.replaceState({}, '', '/users/my_talks/81159/');
+
+    const pages = {
+      'http://localhost/users/my_talks/81159/': pageHtml(
+        [
+          messageHtml(27737820, 'same text', 'partner', '11.07.2023 22:50'),
+          messageHtml(2, 'other', 'partner', '11.07.2023 22:51'),
+        ],
+        1,
+        '81159',
+      ),
+      'http://localhost/users/my_talks/81159/page1/': pageHtml([
+        messageHtml(27737814, 'same text', 'partner', '11.07.2023 22:50'),
+      ]),
+      'http://localhost/users/my_talks/81159/page2/': pageHtml([]),
+    };
+
+    class MockXHR {
+      open(method, url) {
+        this.url = url;
+      }
+
+      send() {
+        setTimeout(() => {
+          this.status = pages[this.url] ? 200 : 404;
+          this.responseText = pages[this.url] || '';
+          this.onload();
+        }, 0);
+      }
+    }
+
+    window.XMLHttpRequest = MockXHR;
+    global.XMLHttpRequest = MockXHR;
+
+    const messages = await fetchAllTalkPages('81159');
+
+    expect(messages.map((message) => message.text)).toEqual(['same text', 'other', 'same text']);
+    expect(messages.map((message) => message.messageId)).toEqual(['27737820', '2', '27737814']);
   });
 });
 

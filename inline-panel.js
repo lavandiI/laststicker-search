@@ -8,6 +8,8 @@
   // Current talk page state
   let currentTalkId = null;
   let currentPartnerName = '';
+  let indexProgressListenerAttached = false;
+  let lastMainSearch = { query: '', results: [], limit: 200 };
   
   // Check if this is a single talk page
   function isSingleTalkPath(path) {
@@ -130,10 +132,9 @@
     const { searchInput, talkId, partnerName } = elements;
     
     let messages = await window.InlineStorage.loadMessages();
-    
+
     // Filter messages by current talkId
-    let talkMessages = messages.filter(msg => msg.talkId == talkId);
-    let messageCount = talkMessages.length;
+    let messageCount = messages.filter((msg) => msg.talkId == talkId).length;
     
     // Use cached messages if available, otherwise fetch from network
     if (messageCount === 0) {
@@ -147,22 +148,16 @@
       console.log('[LS Search] Total additional messages fetched:', additionalMessages.length);
       
       if (additionalMessages.length > 0) {
-        // Merge with existing messages - use text+timestamp for deduplication since messageId might not be unique
-        const existingTexts = new Set(talkMessages.map(m => `${m.text?.substring(0, 50)}_${m.timestamp}`));
-        const newMsgs = additionalMessages.filter(m => {
-          const key = `${m.text?.substring(0, 50)}_${m.timestamp}`;
-          return !existingTexts.has(key);
-        });
-        
-        if (newMsgs.length > 0) {
-          const allTalkMessages = [...talkMessages, ...newMsgs];
-          await window.InlineStorage.saveMessages([...messages, ...newMsgs], {});
-          messageCount = allTalkMessages.length;
-          console.log('[LS Search] Added', newMsgs.length, 'new messages, total:', messageCount);
-          
-          // Update stats display with new count
-          window.InlineUI.renderTalkStats(messageCount, partnerName);
-        }
+        const mergedMessages = window.InlineStorage.mergeMessages(messages, additionalMessages);
+        const addedCount = mergedMessages.length - messages.length;
+
+        // Save even when only legacy records were upgraded with messageId.
+        await window.InlineStorage.saveMessages(mergedMessages, {});
+        messageCount = mergedMessages.filter((msg) => msg.talkId == talkId).length;
+        console.log('[LS Search] Added', addedCount, 'new messages, total:', messageCount);
+
+        // Update stats display with new count
+        window.InlineUI.renderTalkStats(messageCount, partnerName);
       }
     } else {
       console.log('[LS Search] Using cached messages for talkId:', talkId, 'count:', messageCount);
@@ -252,10 +247,20 @@
 
   // Fetch one dialog page with one retry. A failed request resolves to null,
   // which is different from a valid page that has no messages.
-  function fetchTalkPageHtml(url, retries = 1) {
+  function fetchTalkPageHtml(url, retries = 2) {
     return new Promise((resolve) => {
       const xhr = new XMLHttpRequest();
       xhr.open('GET', url, true);
+      xhr.timeout = 20000;
+
+      const retryOrFail = () => {
+        if (retries > 0) {
+          resolve(fetchTalkPageHtml(url, retries - 1));
+        } else {
+          resolve(null);
+        }
+      };
+
       xhr.onload = () => {
         if (
           xhr.status >= 200 &&
@@ -264,20 +269,18 @@
           xhr.responseText.length > 0
         ) {
           resolve(xhr.responseText);
-        } else if (retries > 0) {
-          resolve(fetchTalkPageHtml(url, retries - 1));
         } else {
-          resolve(null);
+          retryOrFail();
         }
       };
-      xhr.onerror = () => {
-        if (retries > 0) {
-          resolve(fetchTalkPageHtml(url, retries - 1));
-        } else {
-          resolve(null);
-        }
-      };
-      xhr.send();
+      xhr.onerror = retryOrFail;
+      xhr.ontimeout = retryOrFail;
+
+      try {
+        xhr.send();
+      } catch (e) {
+        retryOrFail();
+      }
     });
   }
 
@@ -435,11 +438,12 @@
         return null;
       }
       
-      // Get messageId
+      // Get messageId. The #msg_<id> element is usually headerDiv itself,
+      // so closest() is safer than parentNode.
       let messageId = null;
-      const wrapper = headerDiv.parentNode;
-      if (wrapper && wrapper.id) {
-        const idMatch = String(wrapper.id).match(/^msg_(\d+)/);
+      const idSource = headerDiv.closest('[id^="msg_"]') || headerDiv.parentNode;
+      if (idSource && idSource.id) {
+        const idMatch = String(idSource.id).match(/^msg_(\d+)/);
         if (idMatch) {
           messageId = idMatch[1];
         }
@@ -605,14 +609,62 @@
     console.log('Styles', 'Styles link appended to head');
   }
   
+  function attachIndexProgressListener() {
+    if (
+      indexProgressListenerAttached ||
+      typeof chrome === 'undefined' ||
+      !chrome.runtime ||
+      !chrome.runtime.onMessage
+    ) {
+      return;
+    }
+
+    indexProgressListenerAttached = true;
+    chrome.runtime.onMessage.addListener((message) => {
+      if (!message || message.action !== 'indexProgress') return;
+
+      const indexBtn = document.getElementById('ls-indexBtn');
+      if (indexBtn && message.total) {
+        indexBtn.textContent = `Индексация ${message.done}/${message.total}...`;
+      }
+
+      const cancelBtn = document.getElementById('ls-cancelBtn');
+      if (cancelBtn) {
+        cancelBtn.style.display = 'inline-block';
+      }
+
+      if (message.done < message.total) {
+        window.InlineUI.showStatus(
+          `Индексация: ${message.done}/${message.total} диалогов, ${
+            message.messageCount || 0
+          } сообщений`,
+          'success',
+        );
+      }
+    });
+  }
+
   // Initialize the panel
   async function initPanel(elements) {
-    const { indexBtn, clearBtn, searchInput } = elements;
-    
+    const {
+      indexBtn,
+      cancelBtn,
+      exportBtn,
+      importBtn,
+      clearBtn,
+      searchInput,
+      partnerFilter,
+      imagesOnly,
+      results,
+    } = elements;
+
+    attachIndexProgressListener();
+
     // Load stored messages
     const messages = await window.InlineStorage.loadMessages();
     const stats = window.InlineStorage.getStats(messages);
     window.InlineUI.renderStats(stats);
+    window.InlineUI.renderPartnerFilter(messages);
     
     const lastIndexedAt = await window.InlineStorage.loadLastIndexedAt();
     window.InlineUI.renderLastIndexedAt(lastIndexedAt);
@@ -653,6 +705,30 @@
       clearBtn.addEventListener('click', onClearClick);
       console.log('Init', 'Attached click handler to clearBtn (overwritten)');
     }
+
+    if (cancelBtn) {
+      if (cancelBtn._clickListener) {
+        cancelBtn.removeEventListener('click', cancelBtn._clickListener);
+      }
+      cancelBtn._clickListener = onCancelClick;
+      cancelBtn.addEventListener('click', onCancelClick);
+    }
+
+    if (exportBtn) {
+      if (exportBtn._clickListener) {
+        exportBtn.removeEventListener('click', exportBtn._clickListener);
+      }
+      exportBtn._clickListener = onExportClick;
+      exportBtn.addEventListener('click', onExportClick);
+    }
+
+    if (importBtn) {
+      if (importBtn._clickListener) {
+        importBtn.removeEventListener('click', importBtn._clickListener);
+      }
+      importBtn._clickListener = onImportClick;
+      importBtn.addEventListener('click', onImportClick);
+    }
     
     if (searchInput && !searchInput._hasSearchListener) {
       searchInput._hasSearchListener = true;
@@ -675,10 +751,34 @@
         }, 300);
       });
     }
-    
+
+    const runFilteredSearch = () => {
+      const query = searchInput ? searchInput.value.trim() : '';
+      if (query) performSearch(query);
+    };
+
+    if (partnerFilter && !partnerFilter._hasFilterListener) {
+      partnerFilter._hasFilterListener = true;
+      partnerFilter.addEventListener('change', runFilteredSearch);
+    }
+
+    if (imagesOnly && !imagesOnly._hasFilterListener) {
+      imagesOnly._hasFilterListener = true;
+      imagesOnly.addEventListener('change', runFilteredSearch);
+    }
+
+    if (results && !results._hasLoadMoreListener) {
+      results._hasLoadMoreListener = true;
+      results.addEventListener('click', (e) => {
+        if (e.target.closest('#ls-loadMoreBtn')) {
+          e.preventDefault();
+          loadMoreMainSearch();
+        }
+      });
+    }
+
     // Keyboard navigation
     let activeIndex = -1;
-    const MAX_RESULTS = 200;
     
     document.addEventListener('keydown', (e) => {
       if (e.target !== searchInput) return;
@@ -708,6 +808,112 @@
     });
   }
    
+  // Cancel a running background indexing pass.
+  function onCancelClick(event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+
+    if (chrome.runtime && chrome.runtime.id) {
+      chrome.runtime.sendMessage({ action: 'cancelIndex' }, () => {
+        void chrome.runtime.lastError;
+      });
+      window.InlineUI.showStatus('Останавливаю индексацию...', 'success');
+    }
+  }
+
+  // Download all indexed messages as JSON.
+  async function onExportClick(event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+
+    try {
+      const messages = await window.InlineStorage.loadMessages();
+      const payload = {
+        version: 1,
+        exportedAt: Date.now(),
+        messages,
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `laststicker-messages-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      window.InlineUI.showStatus(`Экспортировано ${messages.length} сообщений`, 'success');
+    } catch (e) {
+      console.error('[LS Search] Export error:', e);
+      window.InlineUI.showStatus('Ошибка экспорта: ' + e.message, 'error');
+    }
+  }
+
+  // Merge a JSON backup selected by the user.
+  function onImportClick(event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/json,.json';
+    input.style.display = 'none';
+
+    input.addEventListener('change', async () => {
+      const file = input.files && input.files[0];
+      input.remove();
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        const imported = Array.isArray(parsed)
+          ? parsed
+          : parsed && Array.isArray(parsed.messages)
+            ? parsed.messages
+            : null;
+
+        if (!imported) {
+          throw new Error('в файле нет массива messages');
+        }
+
+        const normalized = imported.map((msg) => window.InlineStorage.normalizeMessage(msg));
+        const existing = await window.InlineStorage.loadMessages();
+        const merged = window.InlineStorage.mergeMessages(existing, normalized);
+        const saved = await window.InlineStorage.saveMessages(merged, { indexedAt: Date.now() });
+        if (!saved) {
+          throw new Error('не удалось сохранить данные');
+        }
+
+        const stats = window.InlineStorage.getStats(merged);
+        window.InlineUI.renderStats(stats);
+        window.InlineUI.renderPartnerFilter(merged);
+        window.InlineUI.renderLastIndexedAt(Date.now());
+        window.InlineUI.showStatus(
+          `Импортировано: ${merged.length - existing.length} новых сообщений`,
+          'success',
+        );
+
+        const searchInput = document.getElementById('ls-searchInput');
+        if (searchInput && searchInput.value.trim()) {
+          performSearch(searchInput.value.trim());
+        }
+      } catch (e) {
+        console.error('[LS Search] Import error:', e);
+        window.InlineUI.showStatus('Ошибка импорта: ' + e.message, 'error');
+      }
+    });
+
+    document.body.appendChild(input);
+    input.click();
+  }
+
   // Index button click handler
   async function onIndexClick(event) {
     const indexBtn = document.getElementById('ls-indexBtn');
@@ -717,6 +923,11 @@
     
     indexBtn.disabled = true;
     indexBtn.textContent = 'Индексация...';
+
+    const cancelBtn = document.getElementById('ls-cancelBtn');
+    if (cancelBtn) {
+      cancelBtn.style.display = 'inline-block';
+    }
     
     // Check if we're running as extension (has chrome.runtime) or as userscript
     if (chrome.runtime && chrome.runtime.id) {
@@ -727,6 +938,9 @@
       if (indexBtn) {
         indexBtn.disabled = false;
         indexBtn.textContent = 'Индексировать';
+      }
+      if (cancelBtn) {
+        cancelBtn.style.display = 'none';
       }
       return;
     }
@@ -747,28 +961,15 @@
       
       // Merge with existing messages
       const existingMessages = await window.InlineStorage.loadMessages();
-      const messageMap = new Map();
-      
-      existingMessages.forEach((msg) => {
-        messageMap.set(window.InlineStorage.buildMessageKey(msg), msg);
-      });
-      
-      let addedCount = 0;
-      messages.forEach((msg) => {
-        const key = window.InlineStorage.buildMessageKey(msg);
-        if (!messageMap.has(key)) {
-          messageMap.set(key, msg);
-          addedCount++;
-        }
-      });
-      
-      const allMessages = Array.from(messageMap.values());
+      const allMessages = window.InlineStorage.mergeMessages(existingMessages, messages);
+      const addedCount = allMessages.length - existingMessages.length;
       const now = Date.now();
-      
+
       await window.InlineStorage.saveMessages(allMessages, { indexedAt: now });
       
       const stats = window.InlineStorage.getStats(allMessages);
       window.InlineUI.renderStats(stats);
+      window.InlineUI.renderPartnerFilter(allMessages);
       window.InlineUI.renderLastIndexedAt(now);
       
       if (addedCount > 0) {
@@ -791,6 +992,9 @@
       if (indexBtn) {
         indexBtn.disabled = false;
         indexBtn.textContent = 'Индексировать';
+      }
+      if (cancelBtn) {
+        cancelBtn.style.display = 'none';
       }
     }
   }
@@ -831,43 +1035,64 @@
               
               // Merge with existing messages
               const existingMessages = await window.InlineStorage.loadMessages();
-              const messageMap = new Map();
-              
-              existingMessages.forEach((msg) => {
-                messageMap.set(window.InlineStorage.buildMessageKey(msg), msg);
-              });
-              
-              let addedCount = 0;
-              newMessages.forEach((msg) => {
-                const key = window.InlineStorage.buildMessageKey(msg);
-                if (!messageMap.has(key)) {
-                  messageMap.set(key, msg);
-                  addedCount++;
-                }
-              });
-              
-              const allMessages = Array.from(messageMap.values());
+              const allMessages = window.InlineStorage.mergeMessages(existingMessages, newMessages);
+              const addedCount = allMessages.length - existingMessages.length;
               const now = Date.now();
-              
+
               console.log('Index-BG', 'Final result', {
                 existingCount: existingMessages.length,
                 newCount: newMessages.length,
                 addedCount: addedCount,
                 totalInStorage: allMessages.length,
               });
-              
-              await window.InlineStorage.saveMessages(allMessages, { indexedAt: now });
+
+              const saved = await window.InlineStorage.saveMessages(allMessages, {
+                indexedAt: now,
+              });
+              if (!saved) {
+                window.InlineUI.showStatus(
+                  'Не удалось сохранить индекс: проверьте квоту хранилища',
+                  'error',
+                );
+                resolve();
+                return;
+              }
               
               const stats = window.InlineStorage.getStats(allMessages);
+              const skippedTalks = response.skippedTalks || 0;
+              const errors = Array.isArray(response.errors) ? response.errors : [];
+
               console.log('Index-BG', 'Stats after save', {
                 dialogsCount: stats.dialogsCount,
                 messagesCount: stats.messagesCount,
+                skippedTalks,
+                errors: errors.length,
               });
               window.InlineUI.renderStats(stats);
+              window.InlineUI.renderPartnerFilter(allMessages);
               window.InlineUI.renderLastIndexedAt(now);
-              
-              if (addedCount > 0) {
-                window.InlineUI.showStatus(`Добавлено ${addedCount} сообщений из ${indexedSections.length} разделов`, 'success');
+
+              if (response.cancelled) {
+                window.InlineUI.showStatus(
+                  `Индексация остановлена. Добавлено ${addedCount} сообщений`,
+                  'success',
+                );
+              } else if (errors.length > 0) {
+                console.error('[LS Search] Indexing errors:', errors);
+                window.InlineUI.showStatus(
+                  `Готово, но ${errors.length} диалогов с ошибками. Добавлено ${addedCount} сообщений`,
+                  'error',
+                );
+              } else if (addedCount > 0) {
+                window.InlineUI.showStatus(
+                  `Добавлено ${addedCount} сообщений из ${indexedSections.length} разделов; пропущено ${skippedTalks} без изменений`,
+                  'success',
+                );
+              } else if (skippedTalks > 0) {
+                window.InlineUI.showStatus(
+                  `Всё актуально: пропущено ${skippedTalks} диалогов без изменений`,
+                  'success',
+                );
               } else {
                 window.InlineUI.showStatus('Новых сообщений не найдено', 'success');
               }
@@ -904,6 +1129,7 @@
       await window.InlineStorage.clearMessages();
       
       window.InlineUI.renderStats({ dialogsCount: 0, messagesCount: 0 });
+      window.InlineUI.renderPartnerFilter([]);
       window.InlineUI.renderLastIndexedAt(null);
       
       const searchInput = document.getElementById('ls-searchInput');
@@ -921,33 +1147,53 @@
   
   // Perform search
   function performSearch(query) {
-    // This is async but we'll handle it synchronously for simplicity
     window.InlineStorage.loadMessages().then((messages) => {
       if (!messages.length) {
         window.InlineUI.renderEmptyState('no-index');
         return;
       }
-      
+
       const queryLower = query.toLowerCase();
-      
+      const partnerFilter = document.getElementById('ls-partnerFilter');
+      const imagesOnly = document.getElementById('ls-imagesOnly');
+      const selectedPartner = partnerFilter ? partnerFilter.value : '';
+      const onlyImages = imagesOnly ? imagesOnly.checked : false;
+
       const results = messages.filter((msg) => {
         const textMatch = msg.text && msg.text.toLowerCase().includes(queryLower);
         const partnerMatch = msg.partner && msg.partner.toLowerCase().includes(queryLower);
-        return textMatch || partnerMatch;
+        if (!(textMatch || partnerMatch)) return false;
+        if (selectedPartner && msg.partner !== selectedPartner) return false;
+        if (onlyImages && !(msg.text || '').includes('[Image:')) return false;
+        return true;
       });
-      
+
       results.sort((a, b) => {
         const timeA = a.timestamp || 0;
         const timeB = b.timestamp || 0;
         return timeB - timeA;
       });
-      
-      const MAX_RESULTS = 200;
-      const totalCount = results.length;
-      const limited = results.slice(0, MAX_RESULTS);
-      
-      window.InlineUI.renderResults(limited, query, totalCount, MAX_RESULTS);
+
+      lastMainSearch = { query, results, limit: 200 };
+      renderMainSearchResults();
     });
+  }
+
+  function renderMainSearchResults() {
+    const { query, results, limit } = lastMainSearch;
+    window.InlineUI.renderResults(
+      results.slice(0, limit),
+      query,
+      results.length,
+      limit,
+      true,
+    );
+  }
+
+  function loadMoreMainSearch() {
+    if (!lastMainSearch.query) return;
+    lastMainSearch.limit += 200;
+    renderMainSearchResults();
   }
   
   // Fallback extraction from current page
