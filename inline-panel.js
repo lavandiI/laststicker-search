@@ -10,7 +10,12 @@
   let currentPartnerName = '';
   let indexProgressListenerAttached = false;
   let lastMainSearch = { query: '', results: [], limit: 200 };
+  let mainKeyboard = null;
+  let talkKeyboard = null;
   const resolvedMessageTargets = new Map();
+
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const STALE_INDEX_MS = 7 * DAY_MS;
   
   // Check if this is a single talk page
   function isSingleTalkPath(path) {
@@ -27,6 +32,141 @@
   function getPartnerNameFromPage() {
     const titleLink = document.querySelector('#content h1 a');
     return titleLink ? titleLink.textContent.trim() : '';
+  }
+
+  function isEditableElement(element) {
+    if (!element || !element.tagName) return false;
+    const tag = element.tagName.toLowerCase();
+    return (
+      tag === 'input' ||
+      tag === 'textarea' ||
+      tag === 'select' ||
+      element.isContentEditable === true ||
+      element.getAttribute('contenteditable') === 'true'
+    );
+  }
+
+  /**
+   * Keyboard navigation for a search input and its result list.
+   * Arrow keys select, Enter opens, Escape clears, "/" and Ctrl+K focus.
+   */
+  function setupKeyboardNavigation(searchInput, results, onOpen) {
+    if (!searchInput || !results) return null;
+    if (searchInput._keyboardController) return searchInput._keyboardController;
+
+    let activeIndex = -1;
+
+    function getItems() {
+      return Array.from(results.querySelectorAll('.ls-result-item'));
+    }
+
+    function setActive(index) {
+      const items = getItems();
+      if (!items.length) {
+        activeIndex = -1;
+        return;
+      }
+
+      if (index < 0) index = items.length - 1;
+      if (index >= items.length) index = 0;
+      activeIndex = index;
+
+      items.forEach((item, itemIndex) => {
+        const active = itemIndex === activeIndex;
+        item.classList.toggle('ls-result-item--active', active);
+        item.setAttribute('aria-selected', active ? 'true' : 'false');
+        if (active) {
+          searchInput.setAttribute('aria-activedescendant', item.id || '');
+          if (typeof item.scrollIntoView === 'function') {
+            item.scrollIntoView({ block: 'nearest' });
+          }
+        }
+      });
+    }
+
+    function reset() {
+      activeIndex = -1;
+      searchInput.removeAttribute('aria-activedescendant');
+      getItems().forEach((item) => {
+        item.classList.remove('ls-result-item--active');
+        item.setAttribute('aria-selected', 'false');
+      });
+    }
+
+    function open(index) {
+      const items = getItems();
+      if (!items.length) return;
+      const item = items[index >= 0 ? index : 0];
+      if (!item) return;
+      if (typeof onOpen === 'function') {
+        onOpen(item);
+      } else {
+        item.click();
+      }
+    }
+
+    searchInput.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        if (!getItems().length) return;
+        setActive(event.key === 'ArrowDown' ? activeIndex + 1 : activeIndex - 1);
+        return;
+      }
+
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        open(activeIndex);
+        return;
+      }
+
+      if (event.key === 'Escape') {
+        if (searchInput.value) {
+          event.preventDefault();
+          searchInput.value = '';
+          searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+        } else {
+          searchInput.blur();
+        }
+      }
+    });
+
+    function onGlobalKeyDown(event) {
+      const isFocusShortcut =
+        event.code === 'KeyK' &&
+        (event.ctrlKey || event.metaKey) &&
+        !event.altKey &&
+        !event.shiftKey;
+      const isSlash =
+        event.key === '/' && !event.ctrlKey && !event.metaKey && !event.altKey;
+
+      if (!isFocusShortcut && !isSlash) return;
+      if (isSlash && isEditableElement(event.target)) return;
+      if (!searchInput.isConnected) return;
+
+      event.preventDefault();
+      searchInput.focus();
+      searchInput.select();
+    }
+
+    document.addEventListener('keydown', onGlobalKeyDown);
+
+    const controller = { reset, setActive, open };
+    searchInput._keyboardController = controller;
+    return controller;
+  }
+
+  function maybeShowStaleBanner(lastIndexedAt, messagesCount) {
+    if (!lastIndexedAt || !messagesCount) return;
+
+    const age = Date.now() - lastIndexedAt;
+    if (age < STALE_INDEX_MS) return;
+
+    window.InlineUI.showStaleBanner(Math.floor(age / DAY_MS));
+  }
+
+  async function updateIndexSize() {
+    const bytes = await window.InlineStorage.getIndexBytes();
+    window.InlineUI.renderIndexSize(bytes);
   }
   
   // Wait for DOM and dependencies
@@ -130,7 +270,7 @@
   // Initialize talk panel with event handlers
   async function initTalkPanel(elements) {
     console.log('[LS Search] initTalkPanel called with elements:', elements);
-    const { searchInput, talkId, partnerName } = elements;
+    const { searchInput, results, talkId, partnerName } = elements;
     
     let messages = await window.InlineStorage.loadMessages();
 
@@ -190,6 +330,8 @@
       });
     }
     
+    talkKeyboard = setupKeyboardNavigation(searchInput, results, (item) => item.click());
+
     // Also trigger search on initial value if any
     if (searchInput && searchInput.value.trim()) {
       performTalkSearch(searchInput.value.trim(), talkId);
@@ -573,6 +715,7 @@
       const limited = results.slice(0, MAX_RESULTS);
       
       window.InlineUI.renderResults(limited, query, totalCount, MAX_RESULTS);
+      if (talkKeyboard) talkKeyboard.reset();
     });
   }
   
@@ -658,6 +801,14 @@
     
     const lastIndexedAt = await window.InlineStorage.loadLastIndexedAt();
     window.InlineUI.renderLastIndexedAt(lastIndexedAt);
+    await updateIndexSize();
+
+    const readNoticeSeen = await window.InlineStorage.loadReadNoticeSeen();
+    if (!readNoticeSeen) {
+      window.InlineUI.showReadNotice();
+    }
+
+    maybeShowStaleBanner(lastIndexedAt, stats.messagesCount);
     
     const lastQuery = await window.InlineStorage.loadLastQuery();
     if (searchInput) {
@@ -704,6 +855,38 @@
       cancelBtn.addEventListener('click', onCancelClick);
     }
 
+    const staleRefresh = document.getElementById('ls-staleRefresh');
+    if (staleRefresh) {
+      staleRefresh.addEventListener('click', () => {
+        window.InlineUI.hideStaleBanner();
+        onIndexClick();
+      });
+    }
+
+    const staleDismiss = document.getElementById('ls-staleDismiss');
+    if (staleDismiss) {
+      staleDismiss.addEventListener('click', () => {
+        window.InlineUI.hideStaleBanner();
+      });
+    }
+
+    const readNoticeDismiss = document.getElementById('ls-readNoticeDismiss');
+    if (readNoticeDismiss) {
+      readNoticeDismiss.addEventListener('click', async () => {
+        await window.InlineStorage.saveReadNoticeSeen();
+        window.InlineUI.hideReadNotice();
+      });
+    }
+
+    const indexErrors = document.getElementById('ls-indexErrors');
+    if (indexErrors) {
+      indexErrors.addEventListener('click', (event) => {
+        if (event.target.closest('#ls-retryBtn')) {
+          onIndexClick();
+        }
+      });
+    }
+
     if (searchInput && !searchInput._hasSearchListener) {
       searchInput._hasSearchListener = true;
       let searchTimeout;
@@ -731,35 +914,7 @@
       results.addEventListener('click', onResultsClick);
     }
 
-    // Keyboard navigation
-    let activeIndex = -1;
-    
-    document.addEventListener('keydown', (e) => {
-      if (e.target !== searchInput) return;
-      
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        e.preventDefault();
-        
-        const items = Array.from(document.querySelectorAll('.ls-result-item'));
-        if (!items.length) return;
-        
-        if (e.key === 'ArrowDown') {
-          activeIndex = (activeIndex + 1) % items.length;
-        } else if (e.key === 'ArrowUp') {
-          activeIndex = (activeIndex - 1 + items.length) % items.length;
-        }
-        
-        // Update active state
-        items.forEach((item, i) => {
-          if (i === activeIndex) {
-            item.classList.add('ls-result-item--active');
-            item.scrollIntoView({ block: 'nearest' });
-          } else {
-            item.classList.remove('ls-result-item--active');
-          }
-        });
-      }
-    });
+    mainKeyboard = setupKeyboardNavigation(searchInput, results, (item) => item.click());
   }
    
   // Cancel a running background indexing pass.
@@ -786,6 +941,11 @@
     
     indexBtn.disabled = true;
     indexBtn.textContent = 'Индексация...';
+
+    window.InlineUI.hideStaleBanner();
+    window.InlineUI.clearIndexErrors();
+    window.InlineUI.hideReadNotice();
+    window.InlineStorage.saveReadNoticeSeen().catch(() => {});
 
     const cancelBtn = document.getElementById('ls-cancelBtn');
     if (cancelBtn) {
@@ -833,6 +993,8 @@
       const stats = window.InlineStorage.getStats(allMessages);
       window.InlineUI.renderStats(stats);
       window.InlineUI.renderLastIndexedAt(now);
+      window.InlineUI.clearIndexErrors();
+      await updateIndexSize();
       
       if (addedCount > 0) {
         window.InlineUI.showStatus(`Добавлено ${addedCount} сообщений`, 'success');
@@ -931,7 +1093,14 @@
                 errors: errors.length,
               });
               window.InlineUI.renderStats(stats);
-                      window.InlineUI.renderLastIndexedAt(now);
+              window.InlineUI.renderLastIndexedAt(now);
+              await updateIndexSize();
+
+              if (errors.length > 0) {
+                window.InlineUI.renderIndexErrors(errors);
+              } else {
+                window.InlineUI.clearIndexErrors();
+              }
 
               if (response.cancelled) {
                 window.InlineUI.showStatus(
@@ -991,6 +1160,11 @@
       
       window.InlineUI.renderStats({ dialogsCount: 0, messagesCount: 0 });
       window.InlineUI.renderLastIndexedAt(null);
+      window.InlineUI.renderIndexSize(0);
+      window.InlineUI.clearIndexErrors();
+      window.InlineUI.hideStaleBanner();
+      lastMainSearch = { query: '', results: [], limit: 200 };
+      if (mainKeyboard) mainKeyboard.reset();
       
       const searchInput = document.getElementById('ls-searchInput');
       if (searchInput) {
@@ -1041,6 +1215,7 @@
       limit,
       true,
     );
+    if (mainKeyboard) mainKeyboard.reset();
   }
 
   function loadMoreMainSearch() {
@@ -1352,6 +1527,8 @@
       fetchAllTalkPages,
       findMessageOnPage,
       resolveMessageTarget,
+      setupKeyboardNavigation,
+      isEditableElement,
     };
   }
   

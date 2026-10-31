@@ -69,9 +69,7 @@ function createTalkSearchPanel() {
   stats.className = 'ls-talk-stats';
   stats.id = 'ls-talk-stats';
   stats.innerHTML = `
-    <span class="ls-stat-label">Сообщений с </span>
-    <span id="ls-talk-partner" class="ls-stat-value">${escapeHtml(partnerName || 'собеседником')}</span>
-    <span class="ls-stat-label">:</span>
+    <span class="ls-stat-label">Сообщений в диалоге:</span>
     <span id="ls-talk-messageCount" class="ls-stat-value">0</span>
   `;
   
@@ -84,10 +82,14 @@ function createTalkSearchPanel() {
   searchContainer.className = 'ls-search-container';
   
   const searchInput = document.createElement('input');
-  searchInput.type = 'text';
+  searchInput.type = 'search';
   searchInput.id = 'ls-talk-searchInput';
   searchInput.className = 'ls-search-input';
   searchInput.placeholder = 'Поиск в текущем диалоге...';
+  searchInput.autocomplete = 'off';
+  searchInput.spellcheck = false;
+  searchInput.setAttribute('aria-label', 'Поиск в текущем диалоге');
+  searchInput.setAttribute('aria-controls', 'ls-results');
   
   searchContainer.appendChild(searchInput);
   
@@ -140,12 +142,9 @@ function createTalkSearchPanel() {
  * @param {number} count - Number of messages with current partner
  * @param {string} partnerName - Name of the conversation partner
  */
-function renderTalkStats(count, partnerName) {
+function renderTalkStats(count) {
   const countEl = document.getElementById('ls-talk-messageCount');
-  const partnerEl = document.getElementById('ls-talk-partner');
-  
   if (countEl) countEl.textContent = String(count);
-  if (partnerEl) partnerEl.textContent = escapeHtml(partnerName || 'собеседником');
 }
 function createSearchPanel() {
   debugLog('UI', 'createSearchPanel called');
@@ -260,6 +259,10 @@ function createSearchPanel() {
       <span class="ls-stat-label">Сообщений:</span>
       <span id="ls-messageCount" class="ls-stat-value">0</span>
     </span>
+    <span class="ls-stat-item ls-stat-size-item">
+      <span class="ls-stat-label">Индекс:</span>
+      <span id="ls-indexSize" class="ls-stat-value">—</span>
+    </span>
   `;
   
   const lastIndexed = document.createElement('div');
@@ -272,16 +275,61 @@ function createSearchPanel() {
   controls.appendChild(clearBtn);
   controls.appendChild(stats);
   controls.appendChild(lastIndexed);
+
+  // Stale index banner
+  const staleBanner = document.createElement('div');
+  staleBanner.id = 'ls-staleBanner';
+  staleBanner.className = 'ls-banner';
+  staleBanner.setAttribute('role', 'status');
+  staleBanner.hidden = true;
+  staleBanner.innerHTML = `
+    <span id="ls-staleText" class="ls-banner-text"></span>
+    <span class="ls-banner-actions">
+      <button type="button" id="ls-staleRefresh" class="ls-btn ls-btn-primary">Обновить</button>
+      <button type="button" id="ls-staleDismiss" class="ls-btn ls-btn-secondary">Позже</button>
+    </span>
+  `;
+
+  // One-time notice about dialogs being marked as read
+  const readNotice = document.createElement('div');
+  readNotice.id = 'ls-readNotice';
+  readNotice.className = 'ls-notice';
+  readNotice.hidden = true;
+  readNotice.innerHTML = `
+    <span class="ls-notice-text">
+      При индексации сайт может отметить диалоги прочитанными.
+      Архив (<code>/users/my_talks/hide/</code>) уже прочитан.
+    </span>
+    <button type="button" id="ls-readNoticeDismiss" class="ls-btn ls-btn-secondary">Понятно</button>
+  `;
+
+  // Indexing error details
+  const indexErrors = document.createElement('div');
+  indexErrors.id = 'ls-indexErrors';
+  indexErrors.className = 'ls-index-errors';
+  indexErrors.hidden = true;
+
+  // Status line, kept outside the results so rendering does not erase it
+  const statusArea = document.createElement('div');
+  statusArea.id = 'ls-status';
+  statusArea.className = 'ls-status-area';
+  statusArea.setAttribute('role', 'status');
+  statusArea.setAttribute('aria-live', 'polite');
+  statusArea.hidden = true;
   
   // Create search input
   const searchContainer = document.createElement('div');
   searchContainer.className = 'ls-search-container';
   
   const searchInput = document.createElement('input');
-  searchInput.type = 'text';
+  searchInput.type = 'search';
   searchInput.id = 'ls-searchInput';
   searchInput.className = 'ls-search-input';
   searchInput.placeholder = 'Поиск по сообщениям...';
+  searchInput.autocomplete = 'off';
+  searchInput.spellcheck = false;
+  searchInput.setAttribute('aria-label', 'Поиск по сообщениям');
+  searchInput.setAttribute('aria-controls', 'ls-results');
 
   searchContainer.appendChild(searchInput);
   
@@ -289,9 +337,14 @@ function createSearchPanel() {
   const results = document.createElement('div');
   results.id = 'ls-results';
   results.className = 'ls-results';
+  results.setAttribute('aria-label', 'Результаты поиска');
   
   // Add all to panel
   panel.appendChild(controls);
+  panel.appendChild(staleBanner);
+  panel.appendChild(readNotice);
+  panel.appendChild(indexErrors);
+  panel.appendChild(statusArea);
   panel.appendChild(searchContainer);
   panel.appendChild(results);
   
@@ -362,29 +415,155 @@ function renderLastIndexedAt(timestamp) {
 }
 
 /**
+ * Format a byte count for the compact stats row.
+ * @param {number|null|undefined} bytes
+ * @returns {string}
+ */
+function formatBytes(bytes) {
+  if (bytes == null || Number.isNaN(bytes)) return '—';
+  if (bytes <= 0) return '0 Б';
+
+  const kb = 1024;
+  const mb = kb * 1024;
+
+  if (bytes < mb) {
+    const value = bytes / kb;
+    return `${value < 10 ? value.toFixed(1).replace('.', ',') : Math.round(value)} КБ`;
+  }
+
+  return `${(bytes / mb).toFixed(1).replace('.', ',')} МБ`;
+}
+
+/**
+ * Render the stored index size and warn when it approaches the quota.
+ * @param {number|null} bytes
+ */
+function renderIndexSize(bytes) {
+  const sizeEl = document.getElementById('ls-indexSize');
+  if (!sizeEl) return;
+
+  sizeEl.textContent = formatBytes(bytes);
+  const warning = typeof bytes === 'number' && bytes >= 8 * 1024 * 1024;
+  sizeEl.classList.toggle('ls-stat-warning', warning);
+  sizeEl.title = warning
+    ? 'Индекс близок к лимиту chrome.storage.local (10 МБ)'
+    : 'Размер локального индекса';
+}
+
+/**
+ * Show the stale-index banner.
+ * @param {number} days
+ */
+function showStaleBanner(days) {
+  const banner = document.getElementById('ls-staleBanner');
+  const text = document.getElementById('ls-staleText');
+  if (!banner || !text) return;
+
+  const safeDays = Math.max(1, Math.floor(days));
+  const word = safeDays % 10 === 1 && safeDays % 100 !== 11
+    ? 'день'
+    : [2, 3, 4].includes(safeDays % 10) && ![12, 13, 14].includes(safeDays % 100)
+      ? 'дня'
+      : 'дней';
+
+  text.textContent = `Индекс не обновлялся ${safeDays} ${word}. Обновить?`;
+  banner.hidden = false;
+}
+
+function hideStaleBanner() {
+  const banner = document.getElementById('ls-staleBanner');
+  if (banner) banner.hidden = true;
+}
+
+/**
+ * Show the one-time read-marking notice.
+ */
+function showReadNotice() {
+  const notice = document.getElementById('ls-readNotice');
+  if (notice) notice.hidden = false;
+}
+
+function hideReadNotice() {
+  const notice = document.getElementById('ls-readNotice');
+  if (notice) notice.hidden = true;
+}
+
+/**
+ * Render indexing errors in a collapsible block with a retry button.
+ * @param {string[]} errors
+ */
+function renderIndexErrors(errors) {
+  const box = document.getElementById('ls-indexErrors');
+  if (!box) return;
+
+  if (!Array.isArray(errors) || errors.length === 0) {
+    clearIndexErrors();
+    return;
+  }
+
+  box.innerHTML = '';
+
+  const header = document.createElement('div');
+  header.className = 'ls-index-errors-header';
+  header.textContent = `Ошибки индексации: ${errors.length}`;
+  box.appendChild(header);
+
+  const details = document.createElement('details');
+  const summary = document.createElement('summary');
+  summary.textContent = 'Подробности';
+  details.appendChild(summary);
+
+  const list = document.createElement('ul');
+  errors.slice(0, 50).forEach((error) => {
+    const item = document.createElement('li');
+    item.textContent = String(error);
+    list.appendChild(item);
+  });
+  if (errors.length > 50) {
+    const more = document.createElement('li');
+    more.textContent = `…и ещё ${errors.length - 50}`;
+    list.appendChild(more);
+  }
+  details.appendChild(list);
+  box.appendChild(details);
+
+  const retry = document.createElement('button');
+  retry.type = 'button';
+  retry.id = 'ls-retryBtn';
+  retry.className = 'ls-btn ls-btn-primary';
+  retry.textContent = 'Повторить индексацию';
+  box.appendChild(retry);
+
+  box.hidden = false;
+}
+
+function clearIndexErrors() {
+  const box = document.getElementById('ls-indexErrors');
+  if (!box) return;
+  box.hidden = true;
+  box.innerHTML = '';
+}
+
+/**
  * Show status message at the top of results.
  * @param {string} message
  * @param {'success' | 'error'} [type]
  */
 function showStatus(message, type = 'success') {
-  if (!resultsContainer) return;
-  
-  const existingStatus = document.querySelector('.ls-status-message');
-  if (existingStatus) {
-    existingStatus.remove();
-  }
-  
-  const statusEl = document.createElement('div');
-  statusEl.className = `ls-status-message ls-status-${type}`;
+  const statusEl = document.getElementById('ls-status');
+  if (!statusEl) return;
+
+  statusEl.className = `ls-status-area ls-status-${type}`;
   statusEl.textContent = message;
-  
-  resultsContainer.insertBefore(statusEl, resultsContainer.firstChild);
-  
-  setTimeout(() => {
-    if (statusEl.isConnected) {
-      statusEl.remove();
-    }
-  }, 4000);
+  statusEl.hidden = false;
+
+  if (statusEl._hideTimer) {
+    clearTimeout(statusEl._hideTimer);
+  }
+  statusEl._hideTimer = setTimeout(() => {
+    statusEl.hidden = true;
+    statusEl.textContent = '';
+  }, 5000);
 }
 
 /**
@@ -454,7 +633,7 @@ function renderResults(results, query, totalCount, limit, canLoadMore = false) {
               const resultIndex = resultIndexes.get(msg);
 
               return `
-                <${tag} class="ls-result-item" data-result-index="${resultIndex}"${href}>
+                <${tag} class="ls-result-item" id="ls-result-${resultIndex}" data-result-index="${resultIndex}" aria-selected="false"${href}>
                   <div class="ls-result-message">${text}</div>
                   <div class="ls-result-date">${date}</div>
                 </${tag}>
@@ -571,6 +750,13 @@ window.InlineUI = {
   renderStats,
   renderTalkStats,
   renderLastIndexedAt,
+  renderIndexSize,
+  showStaleBanner,
+  hideStaleBanner,
+  showReadNotice,
+  hideReadNotice,
+  renderIndexErrors,
+  clearIndexErrors,
   showStatus,
   showLoading,
   renderEmptyState,

@@ -58,6 +58,26 @@ describe('inline-storage', () => {
     expect(message.url).toBe('https://www.laststicker.ru/users/my_talks/1/');
   });
 
+  test('remembers that the read-marking notice was dismissed', async () => {
+    localStorage.clear();
+    expect(await window.InlineStorage.loadReadNoticeSeen()).toBe(false);
+
+    await window.InlineStorage.saveReadNoticeSeen();
+    expect(await window.InlineStorage.loadReadNoticeSeen()).toBe(true);
+
+    localStorage.clear();
+  });
+
+  test('reports the index size from the stored payload', async () => {
+    localStorage.clear();
+    localStorage.setItem('ls_search_messages', JSON.stringify([{ text: 'hello' }]));
+
+    const bytes = await window.InlineStorage.getIndexBytes();
+
+    expect(bytes).toBeGreaterThan(0);
+    localStorage.clear();
+  });
+
   test('counts dialogs by talkId, not by partner', () => {
     const messages = [
       { talkId: '1', partner: 'p', text: 'a' },

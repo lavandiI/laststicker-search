@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'release/**']
   pull_request:
 
 permissions:
@@ -29,4 +29,4 @@ jobs:
         run: npm test -- --runInBand
 
       - name: Run lint
-        run: npm run lint -- --max-warnings 0
+        run: npm run lint

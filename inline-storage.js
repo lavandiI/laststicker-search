@@ -5,6 +5,7 @@ const LS_KEY_MESSAGES = 'ls_search_messages';
 const LS_KEY_LAST_QUERY = 'ls_search_last_query';
 const LS_KEY_LAST_INDEXED_AT = 'ls_search_last_indexed_at';
 const LS_KEY_MIGRATED = 'ls_search_storage_migrated';
+const LS_KEY_READ_NOTICE_SEEN = 'ls_search_read_notice_seen';
 
 const hasChromeStorage =
   typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local;
@@ -206,6 +207,58 @@ async function loadLastIndexedAt() {
 }
 
 /**
+ * Load the one-time notice about dialogs being marked as read.
+ * @returns {Promise<boolean>}
+ */
+async function loadReadNoticeSeen() {
+  const value = await storageGet(LS_KEY_READ_NOTICE_SEEN);
+  return value === '1' || value === true;
+}
+
+/**
+ * Remember that the read-marking notice was shown and dismissed.
+ * @returns {Promise<void>}
+ */
+async function saveReadNoticeSeen() {
+  await storageSet(LS_KEY_READ_NOTICE_SEEN, '1');
+}
+
+/**
+ * Size of the stored message index in bytes, or null when unavailable.
+ * @returns {Promise<number|null>}
+ */
+async function getIndexBytes() {
+  await ensureMigrated();
+
+  if (hasChromeStorage) {
+    if (typeof chrome.storage.local.getBytesInUse === 'function') {
+      try {
+        return await chrome.storage.local.getBytesInUse(LS_KEY_MESSAGES);
+      } catch {
+        return null;
+      }
+    }
+
+    try {
+      const stored = await chrome.storage.local.get(LS_KEY_MESSAGES);
+      const rawStored = stored[LS_KEY_MESSAGES];
+      return rawStored ? new TextEncoder().encode(rawStored).length : 0;
+    } catch {
+      return null;
+    }
+  }
+
+  const raw = localGet(LS_KEY_MESSAGES);
+  if (!raw) return 0;
+
+  try {
+    return new TextEncoder().encode(raw).length;
+  } catch {
+    return raw.length;
+  }
+}
+
+/**
  * Key used before messageId was extracted from the page.
  * @param {StickerMessage} msg
  * @returns {string}
@@ -340,6 +393,9 @@ if (typeof window !== 'undefined') {
     loadLastQuery,
     saveLastQuery,
     loadLastIndexedAt,
+    loadReadNoticeSeen,
+    saveReadNoticeSeen,
+    getIndexBytes,
     buildMessageKey,
     buildLegacyMessageKey,
     mergeMessages,
@@ -356,6 +412,9 @@ if (typeof module !== 'undefined' && module.exports) {
     loadLastQuery,
     saveLastQuery,
     loadLastIndexedAt,
+    loadReadNoticeSeen,
+    saveReadNoticeSeen,
+    getIndexBytes,
     buildMessageKey,
     buildLegacyMessageKey,
     mergeMessages,

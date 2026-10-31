@@ -31,8 +31,9 @@ Effective date / Дата вступления в силу: 2026-11-01
 
 - `storage` — локальное хранение индекса;
 - `scripting` — внедрение панели поиска и парсера на страницы `laststicker.ru`;
-- `tabs` — определение активной вкладки `laststicker.ru` для запуска индексации;
 - host permissions — доступ только к `laststicker.ru` и `www.laststicker.ru`.
+
+Расширение не запрашивает доступ к истории просмотров и не читает вкладки других сайтов.
 
 ### Удаление данных
 
@@ -77,10 +78,11 @@ The extension works only on `laststicker.ru` and `www.laststicker.ru`. It reads 
 
 ### Permissions
 
-- `storage` — local storage of the index;
-- `scripting` — inject the search panel and parser into `laststicker.ru` pages;
-- `tabs` — identify the active `laststicker.ru` tab to start indexing;
-- host permissions — access only `laststicker.ru` and `www.laststicker.ru`.
+- `storage` - local storage of the index;
+- `scripting` - inject the search panel and parser into `laststicker.ru` pages;
+- host permissions - access only `laststicker.ru` and `www.laststicker.ru`.
+
+The extension does not request access to browsing history and does not read tabs on other sites.
 
 ### Data deletion
 

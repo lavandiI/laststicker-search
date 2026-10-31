@@ -124,6 +124,96 @@
   margin-top: 4px;
 }
 
+.ls-stat-warning {
+  color: #993333;
+}
+
+.ls-banner,
+.ls-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.ls-banner {
+  background: #fff8e1;
+  border: 1px solid #f0d48a;
+  color: #6b4e00;
+}
+
+.ls-notice {
+  background: #f5f7ff;
+  border: 1px solid #c6d2f7;
+  color: #333;
+}
+
+.ls-banner[hidden],
+.ls-notice[hidden],
+.ls-index-errors[hidden] {
+  display: none !important;
+}
+
+.ls-banner-actions {
+  display: inline-flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ls-notice code {
+  background: #e6ebff;
+  border-radius: 3px;
+  padding: 0 3px;
+}
+
+.ls-index-errors {
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border: 1px solid #e5b4b4;
+  border-radius: 4px;
+  background: #fff5f5;
+  font-size: 12px;
+  color: #662222;
+}
+
+.ls-index-errors-header {
+  font-weight: bold;
+  margin-bottom: 6px;
+}
+
+.ls-index-errors details {
+  margin-bottom: 8px;
+}
+
+.ls-index-errors summary {
+  cursor: pointer;
+}
+
+.ls-index-errors ul {
+  margin: 6px 0 0;
+  padding-left: 20px;
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+.ls-index-errors li {
+  margin: 3px 0;
+  word-break: break-word;
+}
+
+.ls-btn:focus-visible,
+.ls-search-input:focus-visible,
+.ls-result-item:focus-visible {
+  outline: 2px solid #2444bc;
+  outline-offset: 2px;
+}
+
 .ls-search-container {
   margin-bottom: 10px;
   box-sizing: border-box;
@@ -145,6 +235,7 @@
 
 .ls-search-input:focus {
   border-color: #2444bc;
+  box-shadow: 0 0 0 2px rgba(36, 68, 188, 0.16);
 }
 
 .ls-search-input::placeholder {
@@ -181,12 +272,17 @@
   font-size: 12px;
 }
 
-.ls-status-message {
+.ls-status-message,
+.ls-status-area {
   text-align: center;
   padding: 8px;
   border-radius: 4px;
   margin-bottom: 10px;
   font-size: 12px;
+}
+
+.ls-status-area[hidden] {
+  display: none !important;
 }
 
 .ls-status-success {
@@ -241,6 +337,11 @@
 
 .ls-result-item:hover {
   background-color: #f0f5ff;
+}
+
+.ls-result-item--active {
+  background-color: #e8eeff;
+  box-shadow: inset 3px 0 0 #2444bc;
 }
 
 .ls-result-message {
@@ -310,5 +411,11 @@
   .ls-stats {
     margin-left: 0;
     justify-content: center;
+  }
+
+  .ls-banner,
+  .ls-notice {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
