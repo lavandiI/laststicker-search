@@ -35,7 +35,7 @@ async function loadInlineDependencies() {
   
   // Ask background script to inject dependencies
   return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage({ action: 'injectDependencies' }, (response) => {
+    chrome.runtime.sendMessage({ action: 'injectDependencies' }, () => {
       if (chrome.runtime.lastError) {
         reject(chrome.runtime.lastError);
         return;
@@ -108,7 +108,7 @@ async function loadInlinePanelScript() {
   
   // Ask background to inject the panel
   return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage({ action: 'injectInlinePanel' }, (response) => {
+    chrome.runtime.sendMessage({ action: 'injectInlinePanel' }, () => {
       if (chrome.runtime.lastError) {
         console.error('[LS Search] Error requesting inline-panel injection:', chrome.runtime.lastError);
         reject(chrome.runtime.lastError);
@@ -194,21 +194,6 @@ async function extractAllMessages() {
   return [];
 }
 
-function extractFromTalksList(doc) {
-  const messages = [];
-  const talkRows = doc.querySelectorAll('#talks_table tr[id^="talk_"]');
-  
-  talkRows.forEach((row) => {
-    const talkId = row.id.replace('talk_', '');
-    const msg = parseTalkRow(row, talkId);
-    if (msg) {
-      messages.push(msg);
-    }
-  });
-
-  return messages;
-}
-
 async function extractAllFromTalksList(doc) {
   const messages = [];
   const origin = window.location.origin;
@@ -286,7 +271,7 @@ async function extractAllFromTalksList(doc) {
     
     const existingTalkIds = new Set(talks.map(t => t.talkId));
     
-    await fetchBatch(limitedPageUrls, 20, (html, rawUrl) => {
+    await fetchBatch(limitedPageUrls, 20, (html) => {
       const parser = new DOMParser();
       const pageDoc = parser.parseFromString(html, 'text/html');
       const pageTalkRows = pageDoc.querySelectorAll('#talks_table tr[id^="talk_"]');
@@ -706,72 +691,7 @@ function parseUserMessage(el, defaultPartner) {
       messageId: messageId || undefined
     };
     
-  } catch (e) {
-    return null;
-  }
-}
-
-// Parse a talk row from the list page
-function parseTalkRow(row, talkId) {
-  try {
-    const currentPath = window.location.pathname;
-    const isHidden = isHiddenTalksPath(currentPath);
-    const talksBasePath = isHidden ? '/users/my_talks/hide/' : '/users/my_talks/';
-    
-    // Get partner username from the first column
-    let partner = '';
-    const firstCol = row.querySelector('td:first-child');
-    
-    if (firstCol) {
-      // Find ALL links starting with /users/
-      const allLinks = firstCol.querySelectorAll('a[href^="/users/"]');
-      
-      let partnerLink = null;
-      // Use the second link (first one is for image)
-      if (allLinks.length >= 2) {
-        partnerLink = allLinks[1];
-      } else if (allLinks.length === 1) {
-        // If only one link, check if it has text
-        if (allLinks[0].textContent.trim()) {
-          partnerLink = allLinks[0];
-        }
-      }
-      if (partnerLink) {
-        partner = partnerLink.textContent.trim();
-      }
-    }
-    
-    // Get last message text
-    let text = '';
-    const messageDiv = document.getElementById('talk_text_' + talkId);
-    if (messageDiv) {
-      const clone = messageDiv.cloneNode(true);
-      clone.querySelectorAll('img').forEach(function(img) { img.remove(); });
-      text = clone.textContent.trim();
-    }
-    
-    // Get timestamp
-    let timestamp = null;
-    const secondCol = row.querySelector('td:last-child');
-    if (secondCol) {
-      const timeSpan = secondCol.querySelector('.clear span');
-      if (timeSpan) {
-        const dateText = timeSpan.textContent.trim();
-        timestamp = parseRussianDate(dateText);
-      }
-    }
-    
-    if (!text || text.length < 1) return null;
-    
-    return {
-      text: text,
-      partner: partner,
-      timestamp: timestamp,
-      talkId: talkId,
-      url: '/users/my_talks/' + talkId + '/'
-    };
-    
-  } catch (e) {
+  } catch {
     return null;
   }
 }
@@ -800,77 +720,9 @@ function parseDate(dateStr) {
     }
     
     return null;
-  } catch (e) {
+  } catch {
     return null;
   }
-}
-
-// Parse Russian date format from talks list
-function parseRussianDate(dateStr) {
-  if (!dateStr) return null;
-  
-  dateStr = dateStr.trim();
-  
-  try {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    
-    const shortDateMatch = dateStr.match(/(\d{1,2})\s*(&nbsp;)?\s*(\w+)\s+(\d{1,2}):(\d{2})/);
-    if (shortDateMatch) {
-      const day = parseInt(shortDateMatch[1]);
-      const monthName = shortDateMatch[3].replace('&nbsp;', ' ');
-      const hours = parseInt(shortDateMatch[4]);
-      const minutes = parseInt(shortDateMatch[5]);
-      
-      const monthNum = getRussianMonth(monthName);
-      if (monthNum !== -1) {
-        return new Date(currentYear, monthNum, day, hours, minutes).getTime();
-      }
-    }
-    
-    const fullDateMatch = dateStr.match(/(\d{1,2})\s+(\w+)\s+(\d{4})\s+(\d{1,2}):(\d{2})/);
-    if (fullDateMatch) {
-      const day = parseInt(fullDateMatch[1]);
-      const monthName = fullDateMatch[2];
-      const year = parseInt(fullDateMatch[3]);
-      const hours = parseInt(fullDateMatch[4]);
-      const minutes = parseInt(fullDateMatch[5]);
-      
-      const monthNum = getRussianMonth(monthName);
-      if (monthNum !== -1) {
-        return new Date(year, monthNum, day, hours, minutes).getTime();
-      }
-    }
-    
-    const date = new Date(dateStr);
-    if (!isNaN(date.getTime())) {
-      return date.getTime();
-    }
-    
-    return null;
-  } catch (e) {
-    return null;
-  }
-}
-
-function getRussianMonth(monthName) {
-  var months = {
-    'января': 0, 'янв': 0,
-    'февраля': 1, 'фев': 1,
-    'марта': 2, 'мар': 2,
-    'апреля': 3, 'апр': 3,
-    'мая': 4,
-    'июня': 5, 'июн': 5,
-    'июля': 6, 'июл': 6,
-    'августа': 7, 'авг': 7,
-    'сентября': 8, 'сен': 8,
-    'октября': 9, 'окт': 9,
-    'ноября': 10, 'ноя': 10,
-    'декабря': 11, 'дек': 11
-  };
-  
-  var normalized = monthName.toLowerCase().replace('&nbsp;', '');
-  return months[normalized] !== undefined ? months[normalized] : -1;
 }
 
 // Highlight the message from a #msg_<id> link opened by a search result.

@@ -2,7 +2,7 @@
 // For embedding directly into the page
 
 // Debug logging function - saves to localStorage
-  function debugLog(section, message, data = null) {
+  function debugLog() {
     // Debug logging disabled
   }
 
@@ -539,7 +539,7 @@ function formatDate(timestamp) {
       hour: '2-digit',
       minute: '2-digit',
     });
-  } catch (e) {
+  } catch {
     return 'Без даты';
   }
 }

@@ -279,7 +279,7 @@
 
       try {
         xhr.send();
-      } catch (e) {
+      } catch {
         retryOrFail();
       }
     });
@@ -510,7 +510,7 @@
         timestamp: timestamp,
         messageId: messageId || undefined
       };
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -537,7 +537,7 @@
         return new Date(year, month, day, hours, minutes).getTime();
       }
       return null;
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -778,7 +778,7 @@
   }
 
   // Index button click handler
-  async function onIndexClick(event) {
+  async function onIndexClick() {
     const indexBtn = document.getElementById('ls-indexBtn');
     if (!indexBtn) {
       return;
@@ -865,7 +865,7 @@
   async function indexViaBackgroundScript() {
     console.log('Index-BG', 'Starting indexViaBackgroundScript');
     
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       console.log('Index-BG', 'Sending indexAllSections request to background');
       
       chrome.runtime.sendMessage({ action: 'indexAllSections' }, (response) => {
@@ -1267,7 +1267,7 @@
         url: '/users/my_talks/' + talkId + '/'
       };
       
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -1310,7 +1310,7 @@
       }
       
       return null;
-    } catch (e) {
+    } catch {
       return null;
     }
   }

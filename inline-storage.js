@@ -14,7 +14,7 @@ let migrationPromise = null;
 function localGet(key) {
   try {
     return typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
-  } catch (e) {
+  } catch {
     return null;
   }
 }

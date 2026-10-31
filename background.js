@@ -21,29 +21,6 @@ const STORAGE_KEY = 'isEnabled';
 let indexInProgress = false;
 let indexCancelRequested = false;
 
-// Parallel fetch helper - processes URLs in batches with credentials
-async function fetchBatch(urls, concurrency = 10, processor = null) {
-  const results = [];
-  for (let i = 0; i < urls.length; i += concurrency) {
-    const batch = urls.slice(i, i + concurrency);
-    const batchResults = await Promise.all(
-      batch.map(async (url) => {
-        try {
-          const response = await fetch(url, { credentials: 'include' });
-          if (!response.ok) return null;
-          const text = await response.text();
-          return processor ? processor(text, url) : text;
-        } catch (e) {
-          console.error('Fetch error:', url, e);
-          return null;
-        }
-      })
-    );
-    results.push(...batchResults.filter(Boolean));
-  }
-  return results;
-}
-
 async function setExtensionIcon(enabled) {
   const icons = enabled ? ICONS_ENABLED : ICONS_DISABLED;
   try {
@@ -72,12 +49,12 @@ async function isExtensionEnabled() {
   try {
     const result = await chrome.storage.local.get(STORAGE_KEY);
     return result[STORAGE_KEY] !== false;
-  } catch (e) {
+  } catch {
     return true;
   }
 }
 
-chrome.action.onClicked.addListener(async (tab) => {
+chrome.action.onClicked.addListener(async () => {
   console.log('[LS Search] Extension icon clicked');
   
   try {
@@ -95,53 +72,6 @@ chrome.action.onClicked.addListener(async (tab) => {
 });
 
 loadAndSetInitialState();
-
-async function injectInlinePanel(tabId) {
-  if (!(await isExtensionEnabled())) {
-    console.log('[LS Search] Extension disabled, skipping injection');
-    return;
-  }
-  
-  console.log('[LS Search] injectInlinePanel called for tab:', tabId);
-  
-  try {
-    const results = await chrome.scripting.executeScript({
-      target: { tabId },
-      func: () => {
-        return {
-          hasInlineStorage: typeof window.InlineStorage,
-          hasInlineUI: typeof window.InlineUI,
-          hasInlinePanelReady: typeof window.InlinePanelReady,
-          inlinePanelExists: !!document.getElementById('ls-search-inline-panel')
-        };
-      }
-    });
-    console.log('[LS Search] Current page state:', results[0]?.result);
-  } catch (e) {
-    console.log('[LS Search] Could not check page state:', e.message);
-  }
-  
-  try {
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      files: ['inline-storage.js']
-    });
-    
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      files: ['inline-ui.js']
-    });
-    
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      files: ['inline-panel.js']
-    });
-    
-    console.log('[LS Search] Inline panel injected');
-  } catch (e) {
-    console.error('[LS Search] Error injecting inline panel:', e);
-  }
-}
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log('[LS Search] Background received message:', request.action);
@@ -174,7 +104,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             chrome.scripting.executeScript({
               target: { tabId: tab.id },
               files: ['content.js']
-            }, (injectionResults) => {
+            }, () => {
               if (chrome.runtime.lastError) {
                 sendResponse({ error: chrome.runtime.lastError.message });
                 return;
@@ -496,162 +426,6 @@ function createProgressSender(tabId) {
   };
 }
 
-async function extractMessagesFromHtml(html, baseUrl) {
-  return new Promise((resolve) => {
-    chrome.scripting.executeScript({
-      target: { tabId: 0 },
-      func: (htmlContent, pageUrl) => {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(htmlContent, 'text/html');
-        
-        const path = pageUrl.replace(/^https?:\/\/[^/]+/, '');
-        
-        const isHidden = path.includes('/hide/');
-        const talksBasePath = isHidden ? '/users/my_talks/hide/' : '/users/my_talks/';
-        
-        const talks = [];
-        const talkRows = doc.querySelectorAll('#talks_table tr[id^="talk_"]');
-        
-        talkRows.forEach((row) => {
-          const idAttr = row.id || '';
-          const talkId = idAttr.replace('talk_', '').trim();
-          if (!talkId) return;
-          
-          talks.push({
-            talkId,
-            url: `/users/my_talks/${talkId}/`,
-          });
-        });
-        
-        const messages = [];
-        
-        talkRows.forEach((row) => {
-          const talkId = row.id.replace('talk_', '').trim();
-          if (!talkId) return;
-          
-          let partner = '';
-          const firstCol = row.querySelector('td:first-child');
-          if (firstCol) {
-            const allLinks = firstCol.querySelectorAll('a[href^="/users/"]');
-            let partnerLink = null;
-            if (allLinks.length >= 2) {
-              partnerLink = allLinks[1];
-            } else if (allLinks.length === 1 && allLinks[0].textContent.trim()) {
-              partnerLink = allLinks[0];
-            }
-            if (partnerLink) {
-              partner = partnerLink.textContent.trim();
-            }
-          }
-          
-          let text = '';
-          const messageDiv = doc.getElementById('talk_text_' + talkId);
-          if (messageDiv) {
-            const clone = messageDiv.cloneNode(true);
-            clone.querySelectorAll('img').forEach(img => img.remove());
-            text = clone.textContent.trim();
-          }
-          
-          let timestamp = null;
-          const secondCol = row.querySelector('td:last-child');
-          if (secondCol) {
-            const timeSpan = secondCol.querySelector('.clear span');
-            if (timeSpan) {
-              const dateText = timeSpan.textContent.trim();
-              timestamp = parseRussianDate(dateText);
-            }
-          }
-          
-          if (text && text.length >= 1) {
-            messages.push({
-              text: text.replace(/\s+/g, ' ').trim(),
-              partner: partner,
-              timestamp: timestamp,
-              talkId: talkId,
-              url: `/users/my_talks/${talkId}/`
-            });
-          }
-        });
-        
-        function parseRussianDate(dateStr) {
-          if (!dateStr) return null;
-          dateStr = dateStr.trim();
-          try {
-            const now = new Date();
-            const currentYear = now.getFullYear();
-            
-            const shortDateMatch = dateStr.match(/(\d{1,2})\s*(&nbsp;)?\s*(\w+)\s+(\d{1,2}):(\d{2})/);
-            if (shortDateMatch) {
-              const day = parseInt(shortDateMatch[1]);
-              const monthName = shortDateMatch[3].replace('&nbsp;', ' ');
-              const hours = parseInt(shortDateMatch[4]);
-              const minutes = parseInt(shortDateMatch[5]);
-              
-              const months = {
-                'января': 0, 'янв': 0,
-                'февраля': 1, 'фев': 1,
-                'марта': 2, 'мар': 2,
-                'апреля': 3, 'апр': 3,
-                'мая': 4,
-                'июня': 5, 'июн': 5,
-                'июля': 6, 'июл': 6,
-                'августа': 7, 'авг': 7,
-                'сентября': 8, 'сен': 8,
-                'октября': 9, 'окт': 9,
-                'ноября': 10, 'ноя': 10,
-                'декабря': 11, 'дек': 11
-              };
-              
-              const normalized = monthName.toLowerCase().replace('&nbsp;', '');
-              const monthNum = months[normalized];
-              if (monthNum !== undefined) {
-                return new Date(currentYear, monthNum, day, hours, minutes).getTime();
-              }
-            }
-            
-            return null;
-          } catch (e) {
-            return null;
-          }
-        }
-        
-        return messages;
-      },
-      args: [html, baseUrl]
-    }, (results) => {
-      if (chrome.runtime.lastError) {
-        console.log('Error extracting from HTML:', chrome.runtime.lastError);
-        resolve([]);
-        return;
-      }
-      
-      if (results && results[0] && results[0].result) {
-        resolve(results[0].result);
-      } else {
-        resolve([]);
-      }
-    });
-  });
-}
-
-function extractMessagesFromTab(tabId) {
-  return new Promise((resolve) => {
-    chrome.tabs.sendMessage(tabId, { action: 'extractMessages' }, (response) => {
-      if (chrome.runtime.lastError) {
-        console.log('Runtime error:', chrome.runtime.lastError);
-        resolve([]);
-        return;
-      }
-
-      if (response && Array.isArray(response.messages)) {
-        resolve(response.messages);
-      } else {
-        resolve([]);
-      }
-    });
-  });
-}
-
 async function extractAllTalkRowsWithPagination(html, tabId) {
   return new Promise((resolve) => {
     chrome.scripting.executeScript({
@@ -721,44 +495,6 @@ async function extractAllTalkRowsWithPagination(html, tabId) {
       }
 
       if (results && results[0] && Array.isArray(results[0].result)) {
-        resolve(results[0].result);
-      } else {
-        resolve([]);
-      }
-    });
-  });
-}
-
-async function extractTalkIdsFromHtml(html, tabId) {
-  return new Promise((resolve) => {
-    chrome.scripting.executeScript({
-      target: { tabId: tabId },
-      func: (htmlContent) => {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(htmlContent, 'text/html');
-        
-        const talkIds = [];
-        const talkRows = doc.querySelectorAll('#talks_table tr[id^="talk_"]');
-        
-        talkRows.forEach((row) => {
-          const idAttr = row.id || '';
-          const talkId = idAttr.replace('talk_', '').trim();
-          if (talkId) {
-            talkIds.push(talkId);
-          }
-        });
-        
-        return talkIds;
-      },
-      args: [html]
-    }, (results) => {
-      if (chrome.runtime.lastError) {
-        console.log('Error extracting talk IDs:', chrome.runtime.lastError);
-        resolve([]);
-        return;
-      }
-      
-      if (results && results[0] && results[0].result) {
         resolve(results[0].result);
       } else {
         resolve([]);
@@ -959,7 +695,7 @@ async function parseTalkHtmlWithPagination(html, talkUrl, tabId) {
               messageId: messageId || undefined
             };
             
-          } catch (e) {
+          } catch {
             return null;
           }
         }
@@ -981,7 +717,7 @@ async function parseTalkHtmlWithPagination(html, talkUrl, tabId) {
               return new Date(year, month, day, hours, minutes).getTime();
             }
             return null;
-          } catch (e) {
+          } catch {
             return null;
           }
         }
@@ -1161,139 +897,4 @@ async function parseTalkHtmlWithPagination(html, talkUrl, tabId) {
       resolve(results[0].result);
     });
   });
-}
-
-function extractMessagesFromDoc(doc, defaultPartner, talkId) {
-  const messages = [];
-  const messageElements = doc.querySelectorAll('.user_message');
-  
-  messageElements.forEach((el) => {
-    const msg = parseUserMessageEl(el, defaultPartner, talkId);
-    if (msg) {
-      messages.push(msg);
-    }
-  });
-  
-  return messages;
-}
-
-function parseUserMessageEl(el, defaultPartner, talkId) {
-  try {
-    const divs = el.querySelectorAll('div');
-    let headerDiv = null;
-    let textDiv = null;
-    
-    for (let i = 0; i < divs.length; i++) {
-      const d = divs[i];
-      const cls = d.className || '';
-      if (cls.includes('big_text')) {
-        textDiv = d;
-      } else if (d.querySelector('span') && d.querySelector('a')) {
-        headerDiv = d;
-      }
-    }
-    
-    if (!headerDiv && divs.length > 0) {
-      headerDiv = divs[0];
-    }
-    
-    if (!headerDiv) return null;
-
-    let messageId = null;
-    const idSource = headerDiv.closest('[id^="msg_"]') || headerDiv.parentNode;
-    if (idSource && idSource.id) {
-      const idMatch = String(idSource.id).match(/^msg_(\d+)/);
-      if (idMatch) {
-        messageId = idMatch[1];
-      }
-    }
-    
-    let timestamp = null;
-    const timeSpan = headerDiv.querySelector('span');
-    if (timeSpan) {
-      const dateText = timeSpan.textContent.trim();
-      timestamp = parseDateStr(dateText);
-    }
-    
-    let partner = defaultPartner;
-    const userLink = headerDiv.querySelector('a[href^="/users/"]');
-    
-    if (userLink) {
-      const href = userLink.getAttribute('href');
-      if (href && !href.includes('/83061/')) {
-        const linkText = userLink.textContent.trim();
-        if (linkText) {
-          partner = linkText;
-        }
-      }
-    }
-
-    let text = '';
-    if (textDiv) {
-      text = textDiv.textContent.trim();
-      
-      if (!text) {
-        const images = textDiv.querySelectorAll('img');
-        if (images.length > 0) {
-          const imgSrcs = Array.from(images).map(img => {
-            const src = img.getAttribute('src') || img.getAttribute('data-src');
-            if (src) {
-              if (src.startsWith('data:image/')) {
-                const base64Match = src.match(/^data:image\/(\w+);base64,/);
-                const format = base64Match ? base64Match[1] : 'unknown';
-                return `[Base64 ${format}]`;
-              }
-              return src;
-            }
-            return '';
-          }).filter(Boolean);
-          text = '[Image: ' + imgSrcs.join(', ') + ']';
-        }
-      }
-    } else {
-      const clone = el.cloneNode(true);
-      if (clone.querySelector('div')) {
-        clone.querySelectorAll('div').forEach(d => d.remove());
-      }
-      text = clone.textContent.trim();
-    }
-    
-    if (!text || text.length < 1) return null;
-    
-    text = text.replace(/\s+/g, ' ').trim();
-    
-    return {
-      text: text,
-      partner: partner,
-      timestamp: timestamp,
-      url: `https://laststicker.ru/users/my_talks/${talkId}/`,
-      talkId: talkId,
-      messageId: messageId || undefined
-    };
-    
-  } catch (e) {
-    return null;
-  }
-}
-
-function parseDateStr(dateStr) {
-  if (!dateStr) return null;
-  dateStr = dateStr.trim();
-  try {
-    const match = dateStr.match(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})\s+(\d{1,2}):(\d{2})/);
-    if (match) {
-      const day = parseInt(match[1]);
-      let month = parseInt(match[2]) - 1;
-      let year = parseInt(match[3]);
-      if (year < 100) {
-        year = year + (year > 50 ? 1900 : 2000);
-      }
-      const hours = parseInt(match[4]);
-      const minutes = parseInt(match[5]);
-      return new Date(year, month, day, hours, minutes).getTime();
-    }
-    return null;
-  } catch (e) {
-    return null;
-  }
 }

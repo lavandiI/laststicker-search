@@ -29,4 +29,4 @@ jobs:
         run: npm test -- --runInBand
 
       - name: Run lint
-        run: npm run lint
+        run: npm run lint -- --max-warnings 0
