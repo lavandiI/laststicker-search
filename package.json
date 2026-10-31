@@ -1,8 +1,8 @@
 {
   "name": "laststicker-search-extension",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "private": true,
-  "description": "Chrome Extension для индексации и поиска сообщений на laststicker.ru",
+  "description": "Chrome-расширение для индексации, поиска и перехода к сообщениям на laststicker.ru",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/lavandiI/laststicker-search.git"
