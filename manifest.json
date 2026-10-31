@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "LastSticker Search",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Индексация, поиск и переход к сообщениям в диалогах на laststicker.ru",
   "permissions": ["storage", "scripting", "tabs"],
   "host_permissions": ["*://laststicker.ru/*", "*://www.laststicker.ru/*"],

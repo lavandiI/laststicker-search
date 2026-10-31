@@ -2,7 +2,7 @@
 
 **LastSticker Search** — это расширение Chrome (Manifest V3), которое индексирует ваши диалоги на `laststicker.ru` и позволяет быстро по ним искать.
 
-**Текущая версия:** 1.2.0 · [CHANGELOG](CHANGELOG.md)
+**Текущая версия:** 1.2.1 · [CHANGELOG](CHANGELOG.md)
 
 [![CI](https://github.com/lavandiI/laststicker-search/actions/workflows/ci.yml/badge.svg)](https://github.com/lavandiI/laststicker-search/actions/workflows/ci.yml)
 
