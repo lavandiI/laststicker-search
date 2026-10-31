@@ -344,6 +344,26 @@ function getTalkBasePath(path) {
   return base.endsWith('/') ? base : `${base}/`;
 }
 
+function getTalkPageNumber(path) {
+  const match = path.match(/\/page(\d+)\/?$/);
+  return match ? parseInt(match[1], 10) : null;
+}
+
+function getLastLinkedTalkPage(doc) {
+  const pagesRoot = doc.querySelector('#pages');
+  if (!pagesRoot) return 0;
+
+  let lastPage = 0;
+  pagesRoot.querySelectorAll('a.page[href*="/users/my_talks/"]').forEach((link) => {
+    const href = link.getAttribute('href') || '';
+    const match = href.match(/\/page(\d+)\/?$/);
+    if (match) {
+      lastPage = Math.max(lastPage, parseInt(match[1], 10));
+    }
+  });
+  return lastPage;
+}
+
 function buildTalkPageUrl(talkBasePath, pageNumber = null) {
   const suffix = pageNumber ? `page${pageNumber}/` : '';
   return `${window.location.origin}${talkBasePath}${suffix}`;
@@ -387,14 +407,24 @@ function dedupeTalkMessages(messages) {
 }
 
 async function fetchAllTalkPages(talkId, talkBasePath, defaultPartner, options = {}) {
-  const { skipBase = false, skipPageNumber = null } = options;
+  const { skipBase = false, skipPageNumber = null, knownLastPage = 0 } = options;
   const allMessages = [];
   const BATCH_SIZE = 10;
   const MAX_TALK_PAGES = 200;
 
+  let hint = knownLastPage;
+  let endPage = hint > 0 ? Math.min(MAX_TALK_PAGES, hint + 1) : 1;
+
   const addPageHtml = (html, pageUrl) => {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
+
+    const pageHint = getLastLinkedTalkPage(doc);
+    if (pageHint > hint) {
+      hint = pageHint;
+      endPage = Math.max(endPage, Math.min(MAX_TALK_PAGES, hint + 1));
+    }
+
     if (!doc.querySelector('.user_message')) {
       return false;
     }
@@ -412,12 +442,13 @@ async function fetchAllTalkPages(talkId, talkBasePath, defaultPartner, options =
 
   let page = 1;
   while (page <= MAX_TALK_PAGES) {
+    const batchEnd = Math.min(endPage, page + BATCH_SIZE - 1, MAX_TALK_PAGES);
     const batchPages = [];
-    for (let i = 0; i < BATCH_SIZE && page <= MAX_TALK_PAGES; i++, page++) {
-      if (skipPageNumber !== null && page === skipPageNumber) {
+    for (let p = page; p <= batchEnd; p++) {
+      if (skipPageNumber !== null && p === skipPageNumber) {
         continue;
       }
-      batchPages.push(page);
+      batchPages.push(p);
     }
 
     if (batchPages.length === 0) {
@@ -446,6 +477,11 @@ async function fetchAllTalkPages(talkId, talkBasePath, defaultPartner, options =
     if (loadedPages === 0) {
       console.error('[LS] No dialog pages loaded in batch, stopping');
       break;
+    }
+
+    page = batchEnd + 1;
+    if (page > endPage) {
+      endPage = Math.min(MAX_TALK_PAGES, page + BATCH_SIZE - 1);
     }
   }
 
@@ -494,14 +530,15 @@ async function extractFromSingleTalk(doc) {
     ...extractMessagesFromTalkDocument(doc, currentPartner, talkId, currentPageUrl),
   );
 
-  const pageMatch = path.match(/\/page(\d+)\/?$/);
-  const currentPageNumber = pageMatch ? parseInt(pageMatch[1], 10) : null;
+  const currentPageNumber = getTalkPageNumber(path);
+  const knownLastPage = Math.max(getLastLinkedTalkPage(doc), currentPageNumber || 0);
 
   // If the current page is the base URL, its messages are already in `doc`.
   // Otherwise fetch the base page as well, skipping only the current pageN.
   const otherMessages = await fetchAllTalkPages(talkId, talkBasePath, currentPartner, {
     skipBase: currentPageNumber === null,
     skipPageNumber: currentPageNumber,
+    knownLastPage,
   });
   messages.push(...otherMessages);
 
@@ -524,8 +561,8 @@ async function fetchFullTalkConversation(talkId, talkUrl) {
     const absoluteFirstPageUrl = new URL(talkUrl, window.location.origin).href;
     const firstPagePath = new URL(absoluteFirstPageUrl).pathname;
     const talkBasePath = getTalkBasePath(firstPagePath);
-    const pageMatch = firstPagePath.match(/\/page(\d+)\/?$/);
-    const firstPageNumber = pageMatch ? parseInt(pageMatch[1], 10) : null;
+    const firstPageNumber = getTalkPageNumber(firstPagePath);
+    const knownLastPage = Math.max(getLastLinkedTalkPage(doc), firstPageNumber || 0);
 
     // Partner from fetched talk page
     let currentPartner = '';
@@ -542,6 +579,7 @@ async function fetchFullTalkConversation(talkId, talkUrl) {
     const otherMessages = await fetchAllTalkPages(talkId, talkBasePath, currentPartner, {
       skipBase: firstPageNumber === null,
       skipPageNumber: firstPageNumber,
+      knownLastPage,
     });
     messages.push(...otherMessages);
   } catch (e) {

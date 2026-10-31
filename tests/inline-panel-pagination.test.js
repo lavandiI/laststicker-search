@@ -9,8 +9,16 @@ function messageHtml(id, text, partner = 'partner', date = '01.01.2026 10:00') {
   );
 }
 
-function pageHtml(messages) {
-  return `<html><body>${messages.join('')}</body></html>`;
+function pageHtml(messages, lastPage = 0) {
+  const pages = lastPage
+    ? `<div id="pages">${Array.from(
+        { length: lastPage },
+        (_, index) =>
+          `<a href="/users/my_talks/41292/page${index + 1}/" class="page">${index + 2}</a>`,
+      ).join('')}</div>`
+    : '';
+
+  return `<html><body>${messages.join('')}${pages}</body></html>`;
 }
 
 describe('fetchAllTalkPages', () => {
@@ -26,11 +34,12 @@ describe('fetchAllTalkPages', () => {
   test('walks pageN until an empty page and deduplicates messages', async () => {
     window.history.replaceState({}, '', '/users/my_talks/41292/');
 
+    const requested = [];
     const pages = {
-      'http://localhost/users/my_talks/41292/': pageHtml([
-        messageHtml(1, 'one'),
-        messageHtml(2, 'two'),
-      ]),
+      'http://localhost/users/my_talks/41292/': pageHtml(
+        [messageHtml(1, 'one'), messageHtml(2, 'two')],
+        2,
+      ),
       'http://localhost/users/my_talks/41292/page1/': pageHtml([
         messageHtml(2, 'two'),
         messageHtml(3, 'three'),
@@ -47,6 +56,7 @@ describe('fetchAllTalkPages', () => {
     class MockXHR {
       open(method, url) {
         this.url = url;
+        requested.push(url);
       }
 
       send() {
@@ -64,6 +74,7 @@ describe('fetchAllTalkPages', () => {
     const messages = await fetchAllTalkPages('41292');
 
     expect(messages.map((message) => message.text)).toEqual(['one', 'two', 'three', 'four']);
+    expect(requested.some((url) => url.endsWith('/page4/'))).toBe(false);
   });
 });
 

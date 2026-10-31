@@ -967,6 +967,21 @@ async function parseTalkHtmlWithPagination(html, talkUrl, tabId) {
           return 'legacy::' + (msg.partner || '') + '::' + (msg.text || '') + '::' + (msg.timestamp || '') + '::' + msgTalkId;
         }
 
+        function getLastLinkedTalkPage(pageDoc) {
+          const pagesRoot = pageDoc.querySelector('#pages');
+          if (!pagesRoot) return 0;
+
+          let lastPage = 0;
+          pagesRoot.querySelectorAll('a.page[href*="/users/my_talks/"]').forEach((link) => {
+            const href = link.getAttribute('href') || '';
+            const match = href.match(/\/page(\d+)\/?$/);
+            if (match) {
+              lastPage = Math.max(lastPage, Number(match[1]));
+            }
+          });
+          return lastPage;
+        }
+
         function addMessages(pageMessages) {
           pageMessages.forEach((msg) => {
             const key = buildMessageKey(msg);
@@ -996,17 +1011,25 @@ async function parseTalkHtmlWithPagination(html, talkUrl, tabId) {
 
         const parsedUrl = new URL(url);
         const talkBasePath = parsedUrl.pathname.replace(/page\d+\/?$/, '').replace(/\/*$/, '/');
-        const baseUrl = parsedUrl.origin + talkBasePath;
+        // The base URL may be laststicker.ru without www, while this injected
+        // script runs on www.laststicker.ru. Pagination fetches must use the
+        // page's origin, otherwise the browser blocks them as cross-origin.
+        const baseUrl = window.location.origin + talkBasePath;
         const BATCH_SIZE = 10;
         const MAX_TALK_PAGES = 200;
 
-        // The site links only the first 11 pages and the last one in #pages,
-        // so walk page1, page2, ... until a page has no messages.
+        // The site links only the first 11 pages and the last one in #pages.
+        // Use the last linked page as a hint, then probe one page past it and
+        // keep going only if that page is not empty.
+        let knownLastPage = getLastLinkedTalkPage(doc);
+        let endPage = knownLastPage > 0 ? Math.min(MAX_TALK_PAGES, knownLastPage + 1) : 1;
+
         let page = 1;
         while (page <= MAX_TALK_PAGES) {
+          const batchEnd = Math.min(endPage, page + BATCH_SIZE - 1, MAX_TALK_PAGES);
           const batchPages = [];
-          for (let i = 0; i < BATCH_SIZE && page <= MAX_TALK_PAGES; i++, page++) {
-            batchPages.push(page);
+          for (let p = page; p <= batchEnd; p++) {
+            batchPages.push(p);
           }
 
           const batchResults = await Promise.all(
@@ -1022,6 +1045,13 @@ async function parseTalkHtmlWithPagination(html, talkUrl, tabId) {
             if (!result.html) continue;
             loadedPages++;
             const pageDoc = parser.parseFromString(result.html, 'text/html');
+
+            const pageHint = getLastLinkedTalkPage(pageDoc);
+            if (pageHint > knownLastPage) {
+              knownLastPage = pageHint;
+              endPage = Math.max(endPage, Math.min(MAX_TALK_PAGES, knownLastPage + 1));
+            }
+
             if (!pageDoc.querySelector('.user_message')) {
               reachedEnd = true;
               break;
@@ -1033,6 +1063,11 @@ async function parseTalkHtmlWithPagination(html, talkUrl, tabId) {
           if (loadedPages === 0) {
             console.log('[LS] No dialog pages loaded in batch, stopping');
             break;
+          }
+
+          page = batchEnd + 1;
+          if (page > endPage) {
+            endPage = Math.min(MAX_TALK_PAGES, page + BATCH_SIZE - 1);
           }
         }
 

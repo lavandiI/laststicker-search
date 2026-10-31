@@ -206,6 +206,28 @@
     return base.endsWith('/') ? base : `${base}/`;
   }
 
+  function getTalkPageNumber(path) {
+    const match = path.match(/\/page(\d+)\/?$/);
+    return match ? parseInt(match[1], 10) : null;
+  }
+
+  // Highest pageN linked by #pages. It is only a hint: the site links the
+  // first 11 pages and the last one, so middle pages are still probed.
+  function getLastLinkedTalkPage(doc) {
+    const pagesRoot = doc.querySelector('#pages');
+    if (!pagesRoot) return 0;
+
+    let lastPage = 0;
+    pagesRoot.querySelectorAll('a.page[href*="/users/my_talks/"]').forEach((link) => {
+      const href = link.getAttribute('href') || '';
+      const match = href.match(/\/page(\d+)\/?$/);
+      if (match) {
+        lastPage = Math.max(lastPage, parseInt(match[1], 10));
+      }
+    });
+    return lastPage;
+  }
+
   // Stable key for deduplication; mirrors InlineStorage.buildMessageKey.
   function buildTalkMessageKey(msg) {
     const talkId = msg.talkId || currentTalkId || '';
@@ -259,8 +281,9 @@
     });
   }
 
-  // Fetch every page of a talk. The site links only the first 11 pages and the
-  // last one in #pages, so walk page1, page2, ... until an empty page is reached.
+  // Fetch every page of a talk. #pages links the first 11 pages and the last
+  // one; use its highest pageN as a hint, then probe one page past it and keep
+  // going only if that page is not empty.
   async function fetchAllTalkPages(talkId) {
     console.log('[LS Search] fetchAllTalkPages called with talkId:', talkId);
     const origin = window.location.origin;
@@ -270,9 +293,20 @@
     const BATCH_SIZE = 10;
     const MAX_TALK_PAGES = 200;
 
+    const currentPageNumber = getTalkPageNumber(window.location.pathname);
+    let knownLastPage = Math.max(getLastLinkedTalkPage(document), currentPageNumber || 0);
+    let endPage = knownLastPage > 0 ? Math.min(MAX_TALK_PAGES, knownLastPage + 1) : 1;
+
     const addPageHtml = (html, pageUrl) => {
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, 'text/html');
+
+      const pageHint = getLastLinkedTalkPage(doc);
+      if (pageHint > knownLastPage) {
+        knownLastPage = pageHint;
+        endPage = Math.max(endPage, Math.min(MAX_TALK_PAGES, knownLastPage + 1));
+      }
+
       // A valid page with no messages is the end of the dialog, even if the
       // parser later rejects individual messages.
       if (!doc.querySelector('.user_message')) {
@@ -291,9 +325,10 @@
     // page1/ is UI page 2, page2/ is UI page 3, and so on.
     let page = 1;
     while (page <= MAX_TALK_PAGES) {
+      const batchEnd = Math.min(endPage, page + BATCH_SIZE - 1, MAX_TALK_PAGES);
       const batchPages = [];
-      for (let i = 0; i < BATCH_SIZE && page <= MAX_TALK_PAGES; i++, page++) {
-        batchPages.push(page);
+      for (let p = page; p <= batchEnd; p++) {
+        batchPages.push(p);
       }
 
       const batchResults = await Promise.all(
@@ -319,6 +354,11 @@
       if (loadedPages === 0) {
         console.log('[LS Search] No dialog pages loaded in batch, stopping');
         break;
+      }
+
+      page = batchEnd + 1;
+      if (page > endPage) {
+        endPage = Math.min(MAX_TALK_PAGES, page + BATCH_SIZE - 1);
       }
     }
 
