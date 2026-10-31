@@ -157,7 +157,6 @@
         if (newMsgs.length > 0) {
           const allTalkMessages = [...talkMessages, ...newMsgs];
           await window.InlineStorage.saveMessages([...messages, ...newMsgs], {});
-          talkMessages = allTalkMessages;
           messageCount = allTalkMessages.length;
           console.log('[LS Search] Added', newMsgs.length, 'new messages, total:', messageCount);
           
@@ -511,7 +510,7 @@
       console.log('Styles', 'Looking for inline-panel scripts', { found: scripts.length });
       
       if (scripts.length > 0) {
-        const baseUrl = scripts[0].src.replace(/[^\/]*$/, '');
+        const baseUrl = scripts[0].src.replace(/[^/]*$/, '');
         link.href = baseUrl + 'inline-styles.css';
         console.log('Styles', 'Using baseUrl for styles', { baseUrl, fullUrl: link.href });
       }
@@ -599,7 +598,7 @@
     document.addEventListener('keydown', (e) => {
       if (e.target !== searchInput) return;
       
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter') {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
         
         const items = Array.from(document.querySelectorAll('.ls-result-item'));

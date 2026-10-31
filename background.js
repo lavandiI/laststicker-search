@@ -94,47 +94,6 @@ chrome.action.onClicked.addListener(async (tab) => {
 
 loadAndSetInitialState();
 
-// Early injection - inject all scripts at once
-async function injectInlinePanelEarly(tabId) {
-  if (!(await isExtensionEnabled())) {
-    console.log('[LS Search] Extension disabled, skipping injection');
-    return;
-  }
-  
-  try {
-    console.log('[LS Search] Early injection starting for tab:', tabId);
-    
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      files: ['content.js']
-    });
-    console.log('[LS Search] content.js injected (early)');
-    
-    await new Promise(r => setTimeout(r, 100));
-    
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      files: ['inline-storage.js']
-    });
-    console.log('[LS Search] inline-storage.js injected (early)');
-    
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      files: ['inline-ui.js']
-    });
-    console.log('[LS Search] inline-ui.js injected (early)');
-    
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      files: ['inline-panel.js']
-    });
-    console.log('[LS Search] inline-panel.js injected (early)');
-    
-  } catch (e) {
-    console.error('[LS Search] Early injection error:', e);
-  }
-}
-
 async function injectInlinePanel(tabId) {
   if (!(await isExtensionEnabled())) {
     console.log('[LS Search] Extension disabled, skipping injection');
@@ -437,7 +396,9 @@ async function indexAllSectionsAsync(request, sender, sendResponse) {
           if (raw) {
             existing = JSON.parse(raw);
           }
-        } catch (e) {}
+        } catch (e) {
+          // Игнорируем повреждённые данные в localStorage
+        }
         
         function buildKey(msg) {
           const talkId = msg.talkId || '';

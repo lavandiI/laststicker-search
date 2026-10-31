@@ -2,9 +2,7 @@
  * Unit tests for parseImagesFromHtml function
  */
 
-global.DOMParser = require('jsdom').DOMParser;
-
-const { parseImagesFromHtml } = require('./inline-panel');
+const { parseImagesFromHtml } = require('../inline-panel');
 
 describe('parseImagesFromHtml', () => {
   test('should return empty array when no images', () => {
@@ -19,11 +17,12 @@ describe('parseImagesFromHtml', () => {
     expect(result).toHaveLength(1);
     expect(result[0].type).toBe('image');
     expect(result[0].src).toBe('https://example.com/images/photo123.jpg');
-    expect(result[0].description).toBe('photo123.jpg');
+    expect(result[0].description).toBe('https://example.com/images/photo123.jpg');
   });
 
   test('should parse image with base64 src', () => {
-    const html = '<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==">';
+    const html =
+      '<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==">';
     const result = parseImagesFromHtml(html);
     expect(result).toHaveLength(1);
     expect(result[0].type).toBe('image');
@@ -52,8 +51,8 @@ describe('parseImagesFromHtml', () => {
     const html = '<img src="https://example.com/1.jpg"><img src="https://example.com/2.png">';
     const result = parseImagesFromHtml(html);
     expect(result).toHaveLength(2);
-    expect(result[0].description).toBe('1.jpg');
-    expect(result[1].description).toBe('2.png');
+    expect(result[0].description).toBe('https://example.com/1.jpg');
+    expect(result[1].description).toBe('https://example.com/2.png');
   });
 
   test('should handle relative URL src', () => {
@@ -61,11 +60,12 @@ describe('parseImagesFromHtml', () => {
     const result = parseImagesFromHtml(html);
     expect(result).toHaveLength(1);
     expect(result[0].src).toBe('/uploads/sticker.png');
-    expect(result[0].description).toBe('sticker.png');
+    expect(result[0].description).toBe('/uploads/sticker.png');
   });
 
   test('should handle base64 with different formats', () => {
-    const html = '<img src="data:image/gif;base64,abc"><img src="data:image/jpeg;base64,def"><img src="data:image/webp;base64,ghi">';
+    const html =
+      '<img src="data:image/gif;base64,abc"><img src="data:image/jpeg;base64,def"><img src="data:image/webp;base64,ghi">';
     const result = parseImagesFromHtml(html);
     expect(result).toHaveLength(3);
     expect(result[0].description).toContain('gif');
