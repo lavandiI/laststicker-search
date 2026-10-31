@@ -87,12 +87,12 @@
 }
 
 .ls-btn-danger {
-  background-color: #cc0000;
-  color: #2444bc;
+  background-color: #993333;
+  color: white;
 }
 
 .ls-btn-danger:hover {
-  background-color: #a30000;
+  background-color: #662222;
 }
 
 .ls-stats {
