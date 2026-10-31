@@ -200,84 +200,129 @@
     }
   }
   
-  // Fetch all pages of a talk
+  // Build the dialog base path, dropping a pageN suffix.
+  function getTalkBasePath(path) {
+    const base = path.replace(/page\d+\/?$/, '');
+    return base.endsWith('/') ? base : `${base}/`;
+  }
+
+  // Stable key for deduplication; mirrors InlineStorage.buildMessageKey.
+  function buildTalkMessageKey(msg) {
+    const talkId = msg.talkId || currentTalkId || '';
+    const messageId = msg.messageId || '';
+    if (talkId && messageId) {
+      return `id::${talkId}::${messageId}`;
+    }
+    return `legacy::${msg.partner || ''}::${msg.text || ''}::${msg.timestamp || ''}::${talkId}`;
+  }
+
+  function dedupeTalkMessages(messages) {
+    const seen = new Set();
+    const unique = [];
+    messages.forEach((msg) => {
+      const key = buildTalkMessageKey(msg);
+      if (seen.has(key)) return;
+      seen.add(key);
+      unique.push(msg);
+    });
+    return unique;
+  }
+
+  // Fetch one dialog page with one retry. A failed request resolves to null,
+  // which is different from a valid page that has no messages.
+  function fetchTalkPageHtml(url, retries = 1) {
+    return new Promise((resolve) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', url, true);
+      xhr.onload = () => {
+        if (
+          xhr.status >= 200 &&
+          xhr.status < 300 &&
+          typeof xhr.responseText === 'string' &&
+          xhr.responseText.length > 0
+        ) {
+          resolve(xhr.responseText);
+        } else if (retries > 0) {
+          resolve(fetchTalkPageHtml(url, retries - 1));
+        } else {
+          resolve(null);
+        }
+      };
+      xhr.onerror = () => {
+        if (retries > 0) {
+          resolve(fetchTalkPageHtml(url, retries - 1));
+        } else {
+          resolve(null);
+        }
+      };
+      xhr.send();
+    });
+  }
+
+  // Fetch every page of a talk. The site links only the first 11 pages and the
+  // last one in #pages, so walk page1, page2, ... until an empty page is reached.
   async function fetchAllTalkPages(talkId) {
     console.log('[LS Search] fetchAllTalkPages called with talkId:', talkId);
-    const allMessages = [];
     const origin = window.location.origin;
-    const path = window.location.pathname;
-    const isHidden = path.includes('/hide/');
-    const talksBasePath = isHidden ? '/users/my_talks/hide/' : '/users/my_talks/';
-    
-    // Normalize URL to avoid duplicates (remove trailing slash)
-    const normalizeUrl = (url) => {
-      return url.replace(/\/+$/, '') || '/';
-    };
-    
-    // Get all page URLs from pagination
-    const pagesDiv = document.getElementById('pages');
-    const urlSet = new Set();
-    
-    // Add current page URL (normalized)
-    urlSet.add(normalizeUrl(window.location.href));
-    
-    if (pagesDiv) {
-      const pageLinks = pagesDiv.querySelectorAll('a.page[href*="/users/my_talks/"]');
-      pageLinks.forEach(link => {
-        const href = link.getAttribute('href');
-        if (href) {
-          urlSet.add(normalizeUrl(href));
-        }
-      });
-    }
-    
-    // Also try to add base talk URL and numbered pages
-    urlSet.add(normalizeUrl(`${origin}${talksBasePath}${talkId}/`));
-    
-    // Try adding page1-page10 URLs
-    for (let i = 1; i <= 10; i++) {
-      urlSet.add(normalizeUrl(`${origin}${talksBasePath}${talkId}/page${i}/`));
-    }
-    
-    // Also add URL variations
-    urlSet.add(normalizeUrl(`${origin}${talksBasePath}${talkId}`));
-    urlSet.add(normalizeUrl(`${origin}${talksBasePath}${talkId}/`));
-    
-    console.log('[LS Search] URLs to fetch:', Array.from(urlSet));
-    
-    const urls = Array.from(urlSet);
+    const talkBasePath = getTalkBasePath(window.location.pathname);
+    const baseUrl = `${origin}${talkBasePath}`;
+    const allMessages = [];
     const BATCH_SIZE = 10;
-    
-    for (let i = 0; i < urls.length; i += BATCH_SIZE) {
-      const batch = urls.slice(i, i + BATCH_SIZE);
-      const batchResults = await Promise.all(
-        batch.map(rawUrl => {
-          return new Promise((resolve) => {
-            const xhr = new XMLHttpRequest();
-            xhr.open('GET', rawUrl, true);
-            xhr.onload = () => {
-              if (xhr.status >= 200 && xhr.status < 300 && xhr.responseText && xhr.responseText.length >= 1000) {
-                resolve({ html: xhr.responseText, url: rawUrl });
-              } else {
-                resolve(null);
-              }
-            };
-            xhr.onerror = () => resolve(null);
-            xhr.send();
-          });
-        })
-      );
-      
-      batchResults.filter(Boolean).forEach(({ html, url }) => {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, 'text/html');
-        const pageMessages = extractMessagesFromTalkDocument(doc, currentPartnerName, talkId, url);
-        console.log('[LS Search] Got', pageMessages.length, 'messages from', url);
-        allMessages.push(...pageMessages);
-      });
+    const MAX_TALK_PAGES = 200;
+
+    const addPageHtml = (html, pageUrl) => {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      // A valid page with no messages is the end of the dialog, even if the
+      // parser later rejects individual messages.
+      if (!doc.querySelector('.user_message')) {
+        return false;
+      }
+      allMessages.push(...extractMessagesFromTalkDocument(doc, currentPartnerName, talkId, pageUrl));
+      return true;
+    };
+
+    // The base URL is page 1.
+    const baseHtml = await fetchTalkPageHtml(baseUrl);
+    if (baseHtml) {
+      addPageHtml(baseHtml, baseUrl);
     }
 
-    return allMessages;
+    // page1/ is UI page 2, page2/ is UI page 3, and so on.
+    let page = 1;
+    while (page <= MAX_TALK_PAGES) {
+      const batchPages = [];
+      for (let i = 0; i < BATCH_SIZE && page <= MAX_TALK_PAGES; i++, page++) {
+        batchPages.push(page);
+      }
+
+      const batchResults = await Promise.all(
+        batchPages.map(async (pageNumber) => {
+          const pageUrl = `${baseUrl}page${pageNumber}/`;
+          return { html: await fetchTalkPageHtml(pageUrl), pageUrl };
+        })
+      );
+
+      let reachedEnd = false;
+      let loadedPages = 0;
+      for (const result of batchResults) {
+        if (!result.html) continue;
+        loadedPages++;
+        if (!addPageHtml(result.html, result.pageUrl)) {
+          reachedEnd = true;
+          break;
+        }
+      }
+
+      if (reachedEnd) break;
+      // Avoid looping forever if the whole batch failed (network/site issue).
+      if (loadedPages === 0) {
+        console.log('[LS Search] No dialog pages loaded in batch, stopping');
+        break;
+      }
+    }
+
+    return dedupeTalkMessages(allMessages);
   }
 
   // Extract messages from a talk document
@@ -1012,7 +1057,13 @@
   }
   
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { parseImagesFromHtml };
+    module.exports = {
+      parseImagesFromHtml,
+      getTalkBasePath,
+      buildTalkMessageKey,
+      dedupeTalkMessages,
+      fetchAllTalkPages,
+    };
   }
   
 })();

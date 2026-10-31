@@ -953,44 +953,90 @@ async function parseTalkHtmlWithPagination(html, talkUrl, tabId) {
         const match = url.match(/\/users\/my_talks\/(\d+)\//);
         const talkId = match ? match[1] : '';
         
-        const messages = [];
-        
-        messages.push(...extractMessagesFromDoc(doc, partner, talkId));
-        console.log('[LS] Parsed messages count:', messages.length);
-        
-        const allUrls = new Set([url]);
-        const pagesRoot = doc.querySelector('#pages');
-        if (pagesRoot) {
-          const pageLinks = pagesRoot.querySelectorAll('a.page[href*="/users/my_talks/"]');
-          pageLinks.forEach((link) => {
-            const href = link.getAttribute('href');
-            if (href) allUrls.add(href);
+        const firstPageMessages = extractMessagesFromDoc(doc, partner, talkId);
+        console.log('[LS] Parsed messages count:', firstPageMessages.length);
+
+        const allMessages = [];
+        const seen = new Set();
+
+        function buildMessageKey(msg) {
+          const msgTalkId = msg.talkId || talkId || '';
+          if (msgTalkId && msg.messageId) {
+            return 'id::' + msgTalkId + '::' + msg.messageId;
+          }
+          return 'legacy::' + (msg.partner || '') + '::' + (msg.text || '') + '::' + (msg.timestamp || '') + '::' + msgTalkId;
+        }
+
+        function addMessages(pageMessages) {
+          pageMessages.forEach((msg) => {
+            const key = buildMessageKey(msg);
+            if (seen.has(key)) return;
+            seen.add(key);
+            allMessages.push(msg);
           });
         }
-        
-        const otherUrls = Array.from(allUrls).filter(u => u !== url).slice(0, 30);
-        
-        // Parallel fetch for pagination pages
-        const BATCH_SIZE = 20;
-        for (let i = 0; i < otherUrls.length; i += BATCH_SIZE) {
-          const batch = otherUrls.slice(i, i + BATCH_SIZE);
+
+        async function fetchPageHtml(pageUrl, retries = 1) {
+          try {
+            const response = await fetch(pageUrl, { credentials: 'include' });
+            if (!response.ok) {
+              throw new Error('HTTP ' + response.status);
+            }
+            return await response.text();
+          } catch (e) {
+            if (retries > 0) {
+              return fetchPageHtml(pageUrl, retries - 1);
+            }
+            console.log('[LS] Failed to fetch dialog page:', pageUrl, e.message);
+            return null;
+          }
+        }
+
+        addMessages(firstPageMessages);
+
+        const parsedUrl = new URL(url);
+        const talkBasePath = parsedUrl.pathname.replace(/page\d+\/?$/, '').replace(/\/*$/, '/');
+        const baseUrl = parsedUrl.origin + talkBasePath;
+        const BATCH_SIZE = 10;
+        const MAX_TALK_PAGES = 200;
+
+        // The site links only the first 11 pages and the last one in #pages,
+        // so walk page1, page2, ... until a page has no messages.
+        let page = 1;
+        while (page <= MAX_TALK_PAGES) {
+          const batchPages = [];
+          for (let i = 0; i < BATCH_SIZE && page <= MAX_TALK_PAGES; i++, page++) {
+            batchPages.push(page);
+          }
+
           const batchResults = await Promise.all(
-            batch.map(async (pageUrl) => {
-              try {
-                const pageResponse = await fetch(pageUrl, { credentials: 'include' });
-                if (!pageResponse.ok) return [];
-                const pageHtml = await pageResponse.text();
-                const pageDoc = parser.parseFromString(pageHtml, 'text/html');
-                return extractMessagesFromDoc(pageDoc, partner, talkId);
-              } catch (e) {
-                return [];
-              }
+            batchPages.map(async (pageNumber) => {
+              const pageUrl = baseUrl + 'page' + pageNumber + '/';
+              return { html: await fetchPageHtml(pageUrl), pageUrl };
             })
           );
-          batchResults.forEach(pageMessages => messages.push(...pageMessages));
+
+          let reachedEnd = false;
+          let loadedPages = 0;
+          for (const result of batchResults) {
+            if (!result.html) continue;
+            loadedPages++;
+            const pageDoc = parser.parseFromString(result.html, 'text/html');
+            if (!pageDoc.querySelector('.user_message')) {
+              reachedEnd = true;
+              break;
+            }
+            addMessages(extractMessagesFromDoc(pageDoc, partner, talkId));
+          }
+
+          if (reachedEnd) break;
+          if (loadedPages === 0) {
+            console.log('[LS] No dialog pages loaded in batch, stopping');
+            break;
+          }
         }
-        
-        return { messages: messages };
+
+        return { messages: allMessages };
       },
       args: [html, talkUrl]
     }, (results) => {

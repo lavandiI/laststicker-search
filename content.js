@@ -314,7 +314,7 @@ async function extractAllFromTalksList(doc) {
   for (let i = 0; i < limitedTalks.length; i += BATCH_SIZE) {
     const batch = limitedTalks.slice(i, i + BATCH_SIZE);
     const batchResults = await Promise.all(
-      batch.map(talk => fetchFullTalkConversation(talk.talkId, talk.url, isHidden))
+      batch.map(talk => fetchFullTalkConversation(talk.talkId, talk.url))
     );
     batchResults.forEach(fullMessages => {
       if (fullMessages && fullMessages.length) {
@@ -337,6 +337,119 @@ function getTalkIdFromPath(path) {
   // Match both /users/my_talks/XXXXX/ and /users/my_talks/hide/XXXXX/
   const match = path.match(/^\/users\/my_talks(?:\/hide)?\/(\d+)\/?/);
   return match ? match[1] : null;
+}
+
+function getTalkBasePath(path) {
+  const base = path.replace(/page\d+\/?$/, '');
+  return base.endsWith('/') ? base : `${base}/`;
+}
+
+function buildTalkPageUrl(talkBasePath, pageNumber = null) {
+  const suffix = pageNumber ? `page${pageNumber}/` : '';
+  return `${window.location.origin}${talkBasePath}${suffix}`;
+}
+
+async function fetchTalkPageHtml(url, retries = 1) {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    return await response.text();
+  } catch (e) {
+    if (retries > 0) {
+      return fetchTalkPageHtml(url, retries - 1);
+    }
+    console.error('[LS] Failed to fetch dialog page:', url, e);
+    return null;
+  }
+}
+
+function buildTalkMessageKey(msg) {
+  const talkId = msg.talkId || '';
+  const messageId = msg.messageId || '';
+  if (talkId && messageId) {
+    return `id::${talkId}::${messageId}`;
+  }
+  return `legacy::${msg.partner || ''}::${msg.text || ''}::${msg.timestamp || ''}::${talkId}`;
+}
+
+function dedupeTalkMessages(messages) {
+  const seen = new Set();
+  const unique = [];
+  messages.forEach((msg) => {
+    const key = buildTalkMessageKey(msg);
+    if (seen.has(key)) return;
+    seen.add(key);
+    unique.push(msg);
+  });
+  return unique;
+}
+
+async function fetchAllTalkPages(talkId, talkBasePath, defaultPartner, options = {}) {
+  const { skipBase = false, skipPageNumber = null } = options;
+  const allMessages = [];
+  const BATCH_SIZE = 10;
+  const MAX_TALK_PAGES = 200;
+
+  const addPageHtml = (html, pageUrl) => {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    if (!doc.querySelector('.user_message')) {
+      return false;
+    }
+    allMessages.push(...extractMessagesFromTalkDocument(doc, defaultPartner, talkId, pageUrl));
+    return true;
+  };
+
+  if (!skipBase) {
+    const baseUrl = buildTalkPageUrl(talkBasePath);
+    const baseHtml = await fetchTalkPageHtml(baseUrl);
+    if (baseHtml) {
+      addPageHtml(baseHtml, baseUrl);
+    }
+  }
+
+  let page = 1;
+  while (page <= MAX_TALK_PAGES) {
+    const batchPages = [];
+    for (let i = 0; i < BATCH_SIZE && page <= MAX_TALK_PAGES; i++, page++) {
+      if (skipPageNumber !== null && page === skipPageNumber) {
+        continue;
+      }
+      batchPages.push(page);
+    }
+
+    if (batchPages.length === 0) {
+      break;
+    }
+
+    const batchResults = await Promise.all(
+      batchPages.map(async (pageNumber) => {
+        const pageUrl = buildTalkPageUrl(talkBasePath, pageNumber);
+        return { html: await fetchTalkPageHtml(pageUrl), pageUrl };
+      })
+    );
+
+    let reachedEnd = false;
+    let loadedPages = 0;
+    for (const result of batchResults) {
+      if (!result.html) continue;
+      loadedPages++;
+      if (!addPageHtml(result.html, result.pageUrl)) {
+        reachedEnd = true;
+        break;
+      }
+    }
+
+    if (reachedEnd) break;
+    if (loadedPages === 0) {
+      console.error('[LS] No dialog pages loaded in batch, stopping');
+      break;
+    }
+  }
+
+  return dedupeTalkMessages(allMessages);
 }
 
 function extractMessagesFromTalkDocument(doc, defaultPartner, talkId, pageUrl) {
@@ -362,10 +475,10 @@ function extractMessagesFromTalkDocument(doc, defaultPartner, talkId, pageUrl) {
 async function extractFromSingleTalk(doc) {
   const messages = [];
   const path = window.location.pathname;
-  
+
   const talkId = getTalkIdFromPath(path);
-  const isHidden = isHiddenTalksPath(path);
-  const talksBasePath = isHidden ? '/users/my_talks/hide/' : '/users/my_talks/';
+  const talkBasePath = getTalkBasePath(path);
+  const currentPageUrl = window.location.href;
 
   // Get current conversation partner from page title
   let currentPartner = '';
@@ -374,8 +487,6 @@ async function extractFromSingleTalk(doc) {
     currentPartner = titleLink.textContent.trim();
   }
 
-  const currentPageUrl = window.location.href;
-
   // currentPartner может быть пустым, тогда partner будет добываться из самих сообщений
 
   // Messages from the current page
@@ -383,50 +494,22 @@ async function extractFromSingleTalk(doc) {
     ...extractMessagesFromTalkDocument(doc, currentPartner, talkId, currentPageUrl),
   );
 
-  // Collect pagination links
-  const pagesRoot = doc.querySelector('#pages');
-  const pageLinks = pagesRoot
-    ? Array.from(pagesRoot.querySelectorAll('a.page[href*="/users/my_talks/"]'))
-    : [];
+  const pageMatch = path.match(/\/page(\d+)\/?$/);
+  const currentPageNumber = pageMatch ? parseInt(pageMatch[1], 10) : null;
 
-  const urlSet = new Set();
-
-  // Ensure base talk URL (page 1) is present if we know talkId
-  if (talkId) {
-    urlSet.add(`${talksBasePath}${talkId}/`);
-  }
-
-  pageLinks.forEach((link) => {
-    const href = link.getAttribute('href');
-    if (href) {
-      urlSet.add(href);
-    }
+  // If the current page is the base URL, its messages are already in `doc`.
+  // Otherwise fetch the base page as well, skipping only the current pageN.
+  const otherMessages = await fetchAllTalkPages(talkId, talkBasePath, currentPartner, {
+    skipBase: currentPageNumber === null,
+    skipPageNumber: currentPageNumber,
   });
-
-  const normalizedPath = path.endsWith('/') ? path : `${path}/`;
-
-  // Normalize and filter out current page
-  const pageUrls = Array.from(urlSet).filter((rawUrl) => {
-    try {
-      const urlObj = new URL(rawUrl, window.location.origin);
-      const pagePath = urlObj.pathname.endsWith('/')
-        ? urlObj.pathname
-        : `${urlObj.pathname}/`;
-      return pagePath !== normalizedPath;
-    } catch (e) {
-      return true;
-    }
-  });
-
-  const otherMessages = await fetchTalkPages(pageUrls, currentPartner, talkId);
   messages.push(...otherMessages);
 
-  return messages;
+  return dedupeTalkMessages(messages);
 }
 
-async function fetchFullTalkConversation(talkId, talkUrl, isHidden) {
+async function fetchFullTalkConversation(talkId, talkUrl) {
   const messages = [];
-  const talksBasePath = isHidden ? '/users/my_talks/hide/' : '/users/my_talks/';
 
   try {
     const response = await fetch(talkUrl);
@@ -439,6 +522,10 @@ async function fetchFullTalkConversation(talkId, talkUrl, isHidden) {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
     const absoluteFirstPageUrl = new URL(talkUrl, window.location.origin).href;
+    const firstPagePath = new URL(absoluteFirstPageUrl).pathname;
+    const talkBasePath = getTalkBasePath(firstPagePath);
+    const pageMatch = firstPagePath.match(/\/page(\d+)\/?$/);
+    const firstPageNumber = pageMatch ? parseInt(pageMatch[1], 10) : null;
 
     // Partner from fetched talk page
     let currentPartner = '';
@@ -452,61 +539,16 @@ async function fetchFullTalkConversation(talkId, talkUrl, isHidden) {
       ...extractMessagesFromTalkDocument(doc, currentPartner, talkId, absoluteFirstPageUrl),
     );
 
-    // Collect pagination links inside this talk
-    const pagesRoot = doc.querySelector('#pages');
-    const pageLinks = pagesRoot
-      ? Array.from(pagesRoot.querySelectorAll('a.page[href*="/users/my_talks/"]'))
-      : [];
-
-    const urlSet = new Set();
-
-    // Ensure base talk URL (page 1) is present
-    urlSet.add(talkUrl);
-
-    pageLinks.forEach((link) => {
-      const href = link.getAttribute('href');
-      if (href) {
-        urlSet.add(href);
-      }
+    const otherMessages = await fetchAllTalkPages(talkId, talkBasePath, currentPartner, {
+      skipBase: firstPageNumber === null,
+      skipPageNumber: firstPageNumber,
     });
-
-    const firstPath = new URL(absoluteFirstPageUrl).pathname;
-    const normalizedFirstPath = firstPath.endsWith('/') ? firstPath : `${firstPath}/`;
-
-    // Normalize and filter out first page
-    const pageUrls = Array.from(urlSet).filter((rawUrl) => {
-      try {
-        const urlObj = new URL(rawUrl, window.location.origin);
-        const pagePath = urlObj.pathname.endsWith('/')
-          ? urlObj.pathname
-          : `${urlObj.pathname}/`;
-        return pagePath !== normalizedFirstPath;
-      } catch (e) {
-        return true;
-      }
-    });
-
-    const otherMessages = await fetchTalkPages(pageUrls, currentPartner, talkId);
     messages.push(...otherMessages);
   } catch (e) {
     console.error('Error while fetching full talk conversation:', talkUrl, e);
   }
 
-  return messages;
-}
-
-async function fetchTalkPages(urls, defaultPartner, talkId) {
-  const MAX_TALK_PAGES = 30;
-  const limitedUrls = urls.slice(0, MAX_TALK_PAGES);
-
-  const allPageMessages = await fetchBatch(limitedUrls, 20, (html, rawUrl) => {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, 'text/html');
-    const absoluteUrl = new URL(rawUrl, window.location.origin).href;
-    return extractMessagesFromTalkDocument(doc, defaultPartner, talkId, absoluteUrl);
-  });
-
-  return allPageMessages.flat();
+  return dedupeTalkMessages(messages);
 }
 
 // Parse a .user_message element
