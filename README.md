@@ -99,7 +99,7 @@ git checkout v1.3.1
 ```bash
 npm install      # установка зависимостей
 npm run lint     # ESLint, без предупреждений
-npm test         # Jest, 58 тестов
+npm test         # Jest, 59 тестов
 npm run package  # ZIP для Chrome Web Store в dist/
 npm run format   # Prettier
 ```

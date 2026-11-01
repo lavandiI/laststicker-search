@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const {
+  getSelfUserId,
   parseUserMessage,
   parseDate,
   extractMessagesFromTalkDocument,
@@ -39,6 +40,16 @@ describe('content parser', () => {
 
     expect(message.partner).toBe('Анна');
     expect(message.text).toBe('Да, есть несколько наборов.');
+  });
+
+  test('detects the current account from the page instead of a hardcoded id', () => {
+    const doc = parseFixture();
+    doc.querySelector('#left_menu a').setAttribute('href', '/users/999/');
+    doc.querySelector('#msg_102 a[href^="/users/"]').setAttribute('href', '/users/999/');
+
+    expect(getSelfUserId(doc)).toBe('999');
+    expect(parseUserMessage(doc.getElementById('msg_102'), 'Анна').partner).toBe('Анна');
+    expect(parseUserMessage(doc.getElementById('msg_101'), 'Анна').partner).toBe('Анна');
   });
 
   test('appends image URLs to the message text', () => {

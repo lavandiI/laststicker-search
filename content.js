@@ -587,6 +587,18 @@ async function fetchFullTalkConversation(talkId, talkUrl) {
   return dedupeTalkMessages(messages);
 }
 
+// Current account id from the site's left menu, used to tell own messages
+// apart from the partner's.
+function getSelfUserId(doc) {
+  if (!doc || !doc.querySelector) return '';
+
+  const link = doc.querySelector('#left_menu a[href^="/users/"]');
+  if (!link) return '';
+
+  const match = (link.getAttribute('href') || '').match(/^\/users\/(\d+)(?:\/|$)/);
+  return match ? match[1] : '';
+}
+
 // Parse a .user_message element
 function parseUserMessage(el, defaultPartner) {
   try {
@@ -635,17 +647,16 @@ function parseUserMessage(el, defaultPartner) {
     const userLink = headerDiv.querySelector('a[href^="/users/"]');
     
     if (userLink) {
-      const href = userLink.getAttribute('href');
+      const href = userLink.getAttribute('href') || '';
+      const selfUserId = getSelfUserId(el.ownerDocument);
+      const isSelf = selfUserId && href.includes(`/users/${selfUserId}/`);
+
       // If link is to self - filter it out, keep defaultPartner
-      if (href && href.includes('/83061/')) {
-        // partner already = defaultPartner
-      } else {
+      if (!isSelf) {
         // Try to get partner name from link text
         const linkText = userLink.textContent.trim();
         if (linkText) {
           partner = linkText;
-        } else {
-          // Link exists but has no text - keep defaultPartner (from page title)
         }
       }
     }
@@ -782,6 +793,7 @@ window.extractFromSingleTalk = extractFromSingleTalk;
 
 if (isCommonJS) {
   module.exports = {
+    getSelfUserId,
     parseUserMessage,
     parseDate,
     extractMessagesFromTalkDocument,

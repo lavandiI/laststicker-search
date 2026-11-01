@@ -554,6 +554,16 @@
     });
   }
 
+  function getSelfUserId(doc) {
+    if (!doc || !doc.querySelector) return '';
+
+    const link = doc.querySelector('#left_menu a[href^="/users/"]');
+    if (!link) return '';
+
+    const match = (link.getAttribute('href') || '').match(/^\/users\/(\d+)(?:\/|$)/);
+    return match ? match[1] : '';
+  }
+
   // Parse a message element
   function parseUserMessageFromElement(el, defaultPartner) {
     try {
@@ -603,8 +613,11 @@
       const userLink = headerDiv.querySelector('a[href^="/users/"]');
       
       if (userLink) {
-        const href = userLink.getAttribute('href');
-        if (href && !href.includes('/83061/')) {
+        const href = userLink.getAttribute('href') || '';
+        const selfUserId = getSelfUserId(el.ownerDocument);
+        const isSelf = selfUserId && href.includes(`/users/${selfUserId}/`);
+
+        if (!isSelf) {
           const linkText = userLink.textContent.trim();
           if (linkText) {
             partner = linkText;
@@ -1519,6 +1532,7 @@
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
       parseImagesFromHtml,
+      getSelfUserId,
       parseUserMessageFromElement,
       parseDate,
       extractMessagesFromTalkDocument,
