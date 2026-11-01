@@ -137,6 +137,19 @@ html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background: #fff'] {
   background-color: var(--ls-surface) !important;
 }
 
+/* Section separators on profile/fund pages are empty headings with an
+   inline light-grey background. */
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background:#eeeeee'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background: #eeeeee'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background:#eee'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background: #eee'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background-color:#eeeeee'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background-color: #eeeeee'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background-color:#eee'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background-color: #eee'] {
+  background-color: var(--ls-surface-2) !important;
+}
+
 /* Inline greys and accent colours. */
 html[data-ls-theme='dark'][data-ls-scope='site'] [style*='color:#666'],
 html[data-ls-theme='dark'][data-ls-scope='site'] [style*='color: #666'] {
