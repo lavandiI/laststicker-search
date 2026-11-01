@@ -773,8 +773,6 @@ function createForumSearchPanel(options = {}) {
       clearBtn: document.getElementById('ls-forumClearBtn'),
       searchInput: document.getElementById('ls-forumSearchInput'),
       results: document.getElementById('ls-forumResults'),
-      scopeRow: document.getElementById('ls-forumScopeRow'),
-      scopeCheckbox: document.getElementById('ls-forumScopeCurrent'),
       status: document.getElementById('ls-forumStatus'),
       errors: document.getElementById('ls-forumErrors'),
     };
@@ -898,18 +896,6 @@ function createForumSearchPanel(options = {}) {
   lastIndexed.className = 'ls-last-index';
   lastIndexed.textContent = 'Индекс форума ещё не создавался';
 
-  const scopeRow = document.createElement('div');
-  scopeRow.id = 'ls-forumScopeRow';
-  scopeRow.className = 'ls-forum-scope';
-  scopeRow.hidden = !options.isTopicPage;
-  scopeRow.innerHTML = `
-    <label class="ls-auto-toggle">
-      <input type="checkbox" id="ls-forumScopeCurrent" checked>
-      <span>Только эта тема</span>
-    </label>
-    <span class="ls-forum-scope-hint">или поиск по всем проиндексированным темам</span>
-  `;
-
   const status = document.createElement('div');
   status.id = 'ls-forumStatus';
   status.className = 'ls-status-area';
@@ -945,7 +931,6 @@ function createForumSearchPanel(options = {}) {
   panel.appendChild(controls);
   panel.appendChild(topicStats);
   panel.appendChild(lastIndexed);
-  panel.appendChild(scopeRow);
   panel.appendChild(status);
   panel.appendChild(errors);
   panel.appendChild(searchContainer);
@@ -961,8 +946,6 @@ function createForumSearchPanel(options = {}) {
     clearBtn,
     searchInput,
     results,
-    scopeRow,
-    scopeCheckbox: document.getElementById('ls-forumScopeCurrent'),
     status,
     errors,
   };

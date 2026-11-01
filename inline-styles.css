@@ -456,24 +456,6 @@
   font-size: 12px;
 }
 
-.ls-forum-scope {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 10px;
-  padding: 7px 10px;
-  border: 1px solid #dfe5f7;
-  border-radius: 4px;
-  background: #f8faff;
-  color: #333;
-}
-
-.ls-forum-scope-hint {
-  color: #666;
-  font-size: 11px;
-}
-
 .ls-forum-topic-group {
   margin-bottom: 8px;
   border-bottom: 1px solid #eee;

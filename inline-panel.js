@@ -488,11 +488,6 @@
     });
   }
 
-  function isForumScopeCurrent() {
-    const checkbox = document.getElementById('ls-forumScopeCurrent');
-    return Boolean(checkbox && !checkbox.disabled && checkbox.checked);
-  }
-
   function setForumIndexingState(running) {
     forumIndexing = running;
     const indexBtn = document.getElementById('ls-forumIndexBtn');
@@ -524,21 +519,6 @@
 
     window.InlineUI.renderForumStats(stats);
     window.InlineUI.renderForumLastIndexedAt(stats.lastIndexedAt);
-
-    const scopeCheckbox = document.getElementById('ls-forumScopeCurrent');
-    const hasTopicIndex = Boolean(
-      stats.topic && Number(stats.topic.indexedComments) > 0,
-    );
-
-    if (scopeCheckbox) {
-      const wasDisabled = scopeCheckbox.disabled;
-      scopeCheckbox.disabled = !hasTopicIndex;
-      if (!hasTopicIndex) {
-        scopeCheckbox.checked = false;
-      } else if (wasDisabled) {
-        scopeCheckbox.checked = true;
-      }
-    }
 
     const query = input ? input.value.trim() : '';
     if (query) {
@@ -619,16 +599,6 @@
       clearBtn.addEventListener('click', onForumClearClick);
     }
 
-    const scopeCheckbox = document.getElementById('ls-forumScopeCurrent');
-    if (scopeCheckbox && !scopeCheckbox._forumScopeListener) {
-      scopeCheckbox._forumScopeListener = true;
-      scopeCheckbox.addEventListener('change', () => {
-        if (searchInput && searchInput.value.trim()) {
-          performForumSearch(searchInput.value.trim(), { resetLimit: true });
-        }
-      });
-    }
-
     if (searchInput && !searchInput._hasForumSearchListener) {
       searchInput._hasForumSearchListener = true;
       let searchTimeout;
@@ -665,7 +635,7 @@
     }
 
     if (options.resetLimit) lastForumSearch.limit = 200;
-    const postId = isForumScopeCurrent() ? currentForumPostId : '';
+    const postId = currentForumPostId || '';
     const limit = Math.max(200, lastForumSearch.limit || 200);
 
     try {
@@ -693,7 +663,7 @@
   }
 
   function renderLastForumSearch() {
-    const groupByTopic = !isForumScopeCurrent();
+    const groupByTopic = !currentForumPostId;
     window.InlineUI.renderForumResults(
       lastForumSearch.results,
       lastForumSearch.query,

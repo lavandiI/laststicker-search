@@ -28,12 +28,12 @@ describe('forum inline UI', () => {
     );
   });
 
-  test('creates a separate forum panel with controls and scope', () => {
+  test('creates a separate forum panel with controls', () => {
     expect(document.getElementById('ls-forum-panel')).toBeTruthy();
     expect(document.getElementById('ls-forumIndexBtn')).toBeTruthy();
     expect(document.getElementById('ls-forumReindexBtn')).toBeTruthy();
     expect(document.getElementById('ls-forumClearBtn')).toBeTruthy();
-    expect(document.getElementById('ls-forumScopeCurrent')).toBeTruthy();
+    expect(document.getElementById('ls-forumScopeCurrent')).toBeNull();
     expect(document.getElementById('ls-forumSearchInput').getAttribute('aria-label')).toBe(
       'Поиск по сообщениям форума',
     );
@@ -136,5 +136,6 @@ describe('forum inline UI', () => {
     const panel = document.getElementById('ls-forum-panel');
     expect(panel.previousElementSibling.classList.contains('line')).toBe(true);
     expect(panel.nextElementSibling.id).toBe('comments_list');
+    expect(document.getElementById('ls-forumScopeCurrent')).toBeNull();
   });
 });
