@@ -29,9 +29,9 @@ Chrome Web Store требует публичный URL, который откр�
 
 Три скриншота 1280×800, 24-бит PNG без альфа-канала:
 
-1. `store/screenshot-main-1.3.0.png` — панель с результатами поиска.
-2. `store/screenshot-stale-1.3.0.png` — баннер устаревшего индекса.
-3. `store/screenshot-talk-1.3.0.png` — панель на странице диалога.
+1. `store/screenshot-main-1.3.1.png` — панель с результатами поиска.
+2. `store/screenshot-stale-1.3.1.png` — баннер устаревшего индекса.
+3. `store/screenshot-talk-1.3.1.png` — панель на странице диалога.
 
 В кадре нет реальных имён и сообщений — данные демонстрационные.
 
@@ -52,7 +52,7 @@ https://github.com/lavandiI/laststicker-search/releases/download/v1.3.1/laststic
 
 1. Открыть https://chrome.google.com/webstore/devconsole
 2. Выбрать уже созданный **LastSticker Search** (1.2.1 уже на review).
-3. Открыть **Package → Upload new package** и загрузить ZIP 1.3.0.
+3. Открыть **Package → Upload new package** и загрузить ZIP 1.3.1.
 4. Проверить/заполнить карточку:
    - название: `LastSticker Search`;
    - краткое описание из `store/listing-ru.md`;

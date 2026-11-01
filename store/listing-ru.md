@@ -106,9 +106,9 @@ LastSticker Search — расширение для Chrome, которое пом
 
 Файлы (1280×800, 24-бит PNG, без альфа-канала):
 
-- `store/screenshot-main-1.3.0.png` — панель с результатами поиска и подсветкой;
-- `store/screenshot-stale-1.3.0.png` — баннер устаревшего индекса;
-- `store/screenshot-talk-1.3.0.png` — панель на странице отдельного диалога.
+- `store/screenshot-main-1.3.1.png` — панель с результатами поиска и подсветкой;
+- `store/screenshot-stale-1.3.1.png` — баннер устаревшего индекса;
+- `store/screenshot-talk-1.3.1.png` — панель на странице отдельного диалога.
 
 Загрузить в **Store listing → Graphic assets → Screenshots**. В кадре нет реальных личных сообщений: имена и тексты демонстрационные.
 
