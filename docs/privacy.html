@@ -30,25 +30,28 @@
     <h2>Русский</h2>
     <p>
       <strong>LastSticker Search</strong> — расширение Chrome для локальной индексации
-      и поиска сообщений в собственных диалогах на <code>laststicker.ru</code>.
+      и поиска сообщений в собственных диалогах и на форуме <code>laststicker.ru</code>.
     </p>
 
     <h3>Какие данные обрабатываются</h3>
     <ul>
-      <li>текст сообщений;</li>
-      <li>имена собеседников;</li>
+      <li>текст сообщений в диалогах и комментариев на форуме;</li>
+      <li>имена собеседников и авторов комментариев;</li>
       <li>даты и время сообщений;</li>
-      <li>идентификаторы диалогов и сообщений;</li>
-      <li>URL страниц диалогов;</li>
+      <li>идентификаторы диалогов, тем и сообщений;</li>
+      <li>URL страниц диалогов и тем;</li>
+      <li>названия тем, категории и метки форума;</li>
       <li>последний поисковый запрос и время индексации.</li>
     </ul>
 
     <h3>Где хранятся данные</h3>
     <p>
-      Данные сохраняются только локально в браузере пользователя в
-      <code>chrome.storage.local</code>. При обновлении со старой версии данные могут
-      быть перенесены из <code>localStorage</code> сайта и удалены оттуда. Расширение
-      не отправляет данные на серверы разработчика или третьих лиц.
+      Данные сохраняются только локально в браузере пользователя: индекс личных
+      диалогов — в <code>chrome.storage.local</code>, индекс форума — в IndexedDB
+      расширения (<code>laststicker-search-forum</code>). При обновлении со старой
+      версии данные диалогов могут быть перенесены из <code>localStorage</code> сайта
+      и удалены оттуда. Расширение не отправляет данные на серверы разработчика или
+      третьих лиц.
     </p>
 
     <h3>Как используются данные</h3>
@@ -57,26 +60,42 @@
       сообщению. Данные не продаются, не передаются и не используются для рекламы.
     </p>
 
+    <h3>Автообновление</h3>
+    <p>
+      Автообновление диалогов включено по умолчанию. Если оно включено, расширение
+      раз в 6 часов проверяет список диалогов и обновляет локальный индекс.
+      Автообновление пропускается, если в аккаунте есть непрочитанные сообщения или
+      ещё не был выполнен полный индекс. Автообновление не работает, когда браузер
+      закрыт. Его можно отключить в панели расширения. Форум индексируется только
+      вручную; автоматического обхода всего форума нет.
+    </p>
+
     <h3>Доступ к сайту</h3>
     <p>
       Расширение работает только на <code>laststicker.ru</code> и
-      <code>www.laststicker.ru</code>. Оно читает страницы диалогов, которые
-      пользователь и так может открыть в своём аккаунте. Расширение не обходит
-      авторизацию и не получает доступ к чужим аккаунтам.
+      <code>www.laststicker.ru</code>. Оно читает страницы диалогов и форума, которые
+      пользователь и так может открыть. Расширение не обходит авторизацию и не
+      получает доступ к чужим аккаунтам.
     </p>
 
     <h3>Разрешения</h3>
     <ul>
       <li><code>storage</code> — локальное хранение индекса;</li>
       <li><code>scripting</code> — внедрение панели поиска и парсера на страницы сайта;</li>
-      <li><code>tabs</code> — определение активной вкладки laststicker.ru для запуска индексации;</li>
+      <li><code>offscreen</code> — локальный парсинг HTML без открытой вкладки;</li>
+      <li><code>alarms</code> — периодическая проверка автообновления;</li>
       <li>host permissions — доступ только к <code>laststicker.ru</code> и <code>www.laststicker.ru</code>.</li>
     </ul>
+    <p>
+      Расширение не запрашивает доступ к истории просмотров и не читает вкладки
+      других сайтов.
+    </p>
 
     <h3>Удаление данных</h3>
     <p>
-      Кнопка «Очистить» в панели удаляет индекс. Удаление расширения также удаляет
-      его локальные данные.
+      Кнопка «Очистить» в панели диалогов удаляет индекс диалогов. На странице
+      темы кнопка «Очистить» удаляет только эту тему, на главной форума — весь
+      форумный индекс. Удаление расширения также удаляет оба локальных индекса.
     </p>
 
     <h3>Дети</h3>
@@ -97,25 +116,29 @@
     <h2>English</h2>
     <p>
       <strong>LastSticker Search</strong> is a Chrome extension that locally indexes
-      and searches messages in your own dialogs on <code>laststicker.ru</code>.
+      and searches messages in your own dialogs and on the forum at
+      <code>laststicker.ru</code>.
     </p>
 
     <h3>Data processed</h3>
     <ul>
-      <li>message text;</li>
-      <li>conversation partner names;</li>
+      <li>message text in dialogs and comments on the forum;</li>
+      <li>conversation partner and comment author names;</li>
       <li>message dates and times;</li>
-      <li>dialog and message identifiers;</li>
-      <li>dialog page URLs;</li>
+      <li>dialog, topic, and message identifiers;</li>
+      <li>dialog and topic page URLs;</li>
+      <li>topic titles, categories, and forum tags;</li>
       <li>the last search query and the last indexing time.</li>
     </ul>
 
     <h3>Where data is stored</h3>
     <p>
-      Data is stored only locally in the user's browser in
-      <code>chrome.storage.local</code>. When upgrading from an older version, data
-      may be migrated from the site's <code>localStorage</code> and removed from there.
-      The extension does not send data to the developer's or any third party's servers.
+      Data is stored only locally in the user's browser: the dialog index in
+      <code>chrome.storage.local</code>, the forum index in the extension's IndexedDB
+      (<code>laststicker-search-forum</code>). When upgrading from an older version,
+      dialog data may be migrated from the site's <code>localStorage</code> and removed
+      from there. The extension does not send data to the developer's or any third
+      party's servers.
     </p>
 
     <h3>How data is used</h3>
@@ -124,26 +147,42 @@
       Data is not sold, shared, or used for advertising.
     </p>
 
+    <h3>Automatic refresh</h3>
+    <p>
+      Automatic refresh of dialogs is enabled by default. When enabled, the extension
+      checks the dialog list and updates the local index every 6 hours. It is skipped
+      when the account has unread messages or when a complete index has not been built
+      yet. It does not run while the browser is closed. It can be disabled in the
+      extension panel. The forum is indexed manually; there is no automatic crawl of
+      the entire forum.
+    </p>
+
     <h3>Site access</h3>
     <p>
       The extension works only on <code>laststicker.ru</code> and
-      <code>www.laststicker.ru</code>. It reads dialog pages that the user can already
-      open in their own account. It does not bypass authentication or access other
-      users' accounts.
+      <code>www.laststicker.ru</code>. It reads dialog and forum pages that the user
+      can already open. It does not bypass authentication or access other users'
+      accounts.
     </p>
 
     <h3>Permissions</h3>
     <ul>
       <li><code>storage</code> — local storage of the index;</li>
       <li><code>scripting</code> — inject the search panel and parser into site pages;</li>
-      <li><code>tabs</code> — identify the active laststicker.ru tab to start indexing;</li>
+      <li><code>offscreen</code> — local HTML parsing without an open tab;</li>
+      <li><code>alarms</code> — periodic automatic refresh;</li>
       <li>host permissions — access only <code>laststicker.ru</code> and <code>www.laststicker.ru</code>.</li>
     </ul>
+    <p>
+      The extension does not request access to browsing history and does not read
+      tabs on other sites.
+    </p>
 
     <h3>Data deletion</h3>
     <p>
-      The "Clear" button in the panel deletes the index. Uninstalling the extension
-      also deletes its local data.
+      The "Clear" button in the dialog panel deletes the dialog index. On a topic
+      page, "Clear" deletes only that topic; on the forum home page, it deletes the
+      entire forum index. Uninstalling the extension also deletes both local indexes.
     </p>
 
     <h3>Children</h3>
@@ -162,7 +201,7 @@
 
   <footer class="site-footer">
     <div class="container footer-inner">
-      <div><strong>LastSticker Search</strong> <span class="muted">· версия 1.2.1</span></div>
+      <div><strong>LastSticker Search</strong> <span class="muted">· версия 1.5.0</span></div>
       <div class="footer-links"><a href="index.html">Главная</a></div>
     </div>
   </footer>
