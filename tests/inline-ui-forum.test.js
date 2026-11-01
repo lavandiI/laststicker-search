@@ -4,14 +4,28 @@ describe('forum inline UI', () => {
   beforeAll(() => {
     document.body.innerHTML = `
       <div id="content">
-        <h1>Черный плащ, Панини</h1>
+        <h1>Форум коллекционеров</h1>
+        <p class="big_text"><b>Важные темы:</b> <a href="/blog/post15/">Черный список</a></p>
+        <div class="line"></div>
+        <p class="big_text">
+          <b>Обсуждаемые темы</b>&nbsp;&nbsp; | &nbsp;&nbsp;
+          <a href="/blog/forum/new/">Новые темы</a>
+        </p>
         <div class="forum_list"></div>
       </div>
     `;
     window.InlineUI.createForumSearchPanel({
-      postId: '54672',
-      isTopicPage: true,
+      postId: '',
+      isTopicPage: false,
     });
+  });
+
+  test('inserts the forum panel under the dashed line and above the topic list', () => {
+    const panel = document.getElementById('ls-forum-panel');
+    expect(panel.previousElementSibling.classList.contains('line')).toBe(true);
+    expect(panel.nextElementSibling.textContent).toContain(
+      'Обсуждаемые темы',
+    );
   });
 
   test('creates a separate forum panel with controls and scope', () => {

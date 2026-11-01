@@ -789,12 +789,29 @@ function createForumSearchPanel(options = {}) {
   let parent = content;
   let before = content ? content.firstChild : null;
 
-  if (topicHeader) {
+  if (options.isTopicPage && topicHeader) {
     parent = topicHeader.parentNode;
     before = topicHeader.nextSibling;
-  } else if (contentHeading) {
-    parent = contentHeading.parentNode;
-    before = contentHeading.nextSibling;
+  } else {
+    // On the forum index and category pages insert the panel after the last
+    // dashed separator and directly above the "Обсуждаемые темы" heading.
+    const listHeading = Array.from(
+      document.querySelectorAll('#content > p.big_text, #content > .big_text'),
+    ).find((element) =>
+      /Обсуждаемые темы|Новые темы/i.test(element.textContent || ''),
+    );
+    const firstForumList = document.querySelector('#content .forum_list');
+
+    if (listHeading) {
+      parent = listHeading.parentNode;
+      before = listHeading;
+    } else if (firstForumList) {
+      parent = firstForumList.parentNode;
+      before = firstForumList;
+    } else if (contentHeading) {
+      parent = contentHeading.parentNode;
+      before = contentHeading.nextSibling;
+    }
   }
 
   if (!parent) {
