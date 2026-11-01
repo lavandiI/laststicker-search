@@ -756,22 +756,502 @@ function groupByPartner(messages) {
   return groups;
 }
 
+/**
+ * Create the separate forum search panel.
+ *
+ * @param {{postId?: string, isTopicPage?: boolean}} [options]
+ * @returns {object|undefined}
+ */
+function createForumSearchPanel(options = {}) {
+  const existing = document.getElementById('ls-forum-panel');
+  if (existing) {
+    return {
+      panel: existing,
+      indexBtn: document.getElementById('ls-forumIndexBtn'),
+      reindexBtn: document.getElementById('ls-forumReindexBtn'),
+      cancelBtn: document.getElementById('ls-forumCancelBtn'),
+      clearBtn: document.getElementById('ls-forumClearBtn'),
+      searchInput: document.getElementById('ls-forumSearchInput'),
+      results: document.getElementById('ls-forumResults'),
+      scopeRow: document.getElementById('ls-forumScopeRow'),
+      scopeCheckbox: document.getElementById('ls-forumScopeCurrent'),
+      status: document.getElementById('ls-forumStatus'),
+      errors: document.getElementById('ls-forumErrors'),
+    };
+  }
+
+  const topicHeader =
+    document.querySelector('#content > .head_bg-l.clearer') ||
+    document.querySelector('#content .head_bg-l.clearer');
+  const contentHeading = document.querySelector('#content h1');
+  const content = document.getElementById('content');
+
+  let parent = content;
+  let before = content ? content.firstChild : null;
+
+  if (topicHeader) {
+    parent = topicHeader.parentNode;
+    before = topicHeader.nextSibling;
+  } else if (contentHeading) {
+    parent = contentHeading.parentNode;
+    before = contentHeading.nextSibling;
+  }
+
+  if (!parent) {
+    console.log('[LS Search] Could not find container for forum panel');
+    return;
+  }
+
+  const panel = document.createElement('div');
+  panel.id = 'ls-forum-panel';
+  panel.className = 'ls-search-panel ls-forum-panel';
+
+  const controls = document.createElement('div');
+  controls.className = 'ls-search-controls';
+
+  const indexBtn = document.createElement('button');
+  indexBtn.type = 'button';
+  indexBtn.id = 'ls-forumIndexBtn';
+  indexBtn.className = 'ls-btn ls-btn-primary';
+  indexBtn.textContent = 'Индексировать тему';
+  indexBtn.title = 'Собрать комментарии этой темы в локальный индекс';
+  indexBtn.hidden = !options.isTopicPage;
+
+  const reindexBtn = document.createElement('button');
+  reindexBtn.type = 'button';
+  reindexBtn.id = 'ls-forumReindexBtn';
+  reindexBtn.className = 'ls-btn ls-btn-secondary';
+  reindexBtn.textContent = 'Переиндексировать';
+  reindexBtn.title = 'Удалить индекс этой темы и собрать её заново';
+  reindexBtn.hidden = true;
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.id = 'ls-forumCancelBtn';
+  cancelBtn.className = 'ls-btn ls-btn-danger';
+  cancelBtn.textContent = 'Отмена';
+  cancelBtn.title = 'Остановить индексацию форума';
+  cancelBtn.hidden = true;
+
+  const clearBtn = document.createElement('button');
+  clearBtn.type = 'button';
+  clearBtn.id = 'ls-forumClearBtn';
+  clearBtn.className = 'ls-btn ls-btn-danger';
+  clearBtn.textContent = 'Очистить форум';
+  clearBtn.title = 'Удалить индекс форума; личные диалоги останутся';
+
+  const stats = document.createElement('div');
+  stats.className = 'ls-stats';
+  stats.innerHTML = `
+    <span class="ls-stat-item">
+      <span class="ls-stat-label">Тем:</span>
+      <span id="ls-forumTopicCount" class="ls-stat-value">0</span>
+    </span>
+    <span class="ls-stat-item">
+      <span class="ls-stat-label">Сообщений:</span>
+      <span id="ls-forumMessageCount" class="ls-stat-value">0</span>
+    </span>
+    <span class="ls-stat-item ls-stat-size-item">
+      <span class="ls-stat-label">Хранилище:</span>
+      <span id="ls-forumIndexSize" class="ls-stat-value">—</span>
+    </span>
+  `;
+
+  controls.appendChild(indexBtn);
+  controls.appendChild(reindexBtn);
+  controls.appendChild(cancelBtn);
+  controls.appendChild(clearBtn);
+  controls.appendChild(stats);
+
+  const topicStats = document.createElement('div');
+  topicStats.id = 'ls-forumTopicStats';
+  topicStats.className = 'ls-forum-topic-stats';
+  topicStats.hidden = true;
+
+  const lastIndexed = document.createElement('div');
+  lastIndexed.id = 'ls-forumLastIndexed';
+  lastIndexed.className = 'ls-last-index';
+  lastIndexed.textContent = 'Индекс форума ещё не создавался';
+
+  const scopeRow = document.createElement('div');
+  scopeRow.id = 'ls-forumScopeRow';
+  scopeRow.className = 'ls-forum-scope';
+  scopeRow.hidden = !options.isTopicPage;
+  scopeRow.innerHTML = `
+    <label class="ls-auto-toggle">
+      <input type="checkbox" id="ls-forumScopeCurrent" checked>
+      <span>Только эта тема</span>
+    </label>
+    <span class="ls-forum-scope-hint">или поиск по всем проиндексированным темам</span>
+  `;
+
+  const status = document.createElement('div');
+  status.id = 'ls-forumStatus';
+  status.className = 'ls-status-area';
+  status.setAttribute('role', 'status');
+  status.setAttribute('aria-live', 'polite');
+  status.hidden = true;
+
+  const errors = document.createElement('div');
+  errors.id = 'ls-forumErrors';
+  errors.className = 'ls-index-errors';
+  errors.hidden = true;
+
+  const searchContainer = document.createElement('div');
+  searchContainer.className = 'ls-search-container';
+
+  const searchInput = document.createElement('input');
+  searchInput.type = 'search';
+  searchInput.id = 'ls-forumSearchInput';
+  searchInput.className = 'ls-search-input';
+  searchInput.placeholder = 'Поиск по сообщениям форума...';
+  searchInput.autocomplete = 'off';
+  searchInput.spellcheck = false;
+  searchInput.setAttribute('aria-label', 'Поиск по сообщениям форума');
+  searchInput.setAttribute('aria-controls', 'ls-forumResults');
+
+  searchContainer.appendChild(searchInput);
+
+  const results = document.createElement('div');
+  results.id = 'ls-forumResults';
+  results.className = 'ls-results';
+  results.setAttribute('aria-label', 'Результаты поиска по форуму');
+
+  panel.appendChild(controls);
+  panel.appendChild(topicStats);
+  panel.appendChild(lastIndexed);
+  panel.appendChild(scopeRow);
+  panel.appendChild(status);
+  panel.appendChild(errors);
+  panel.appendChild(searchContainer);
+  panel.appendChild(results);
+
+  parent.insertBefore(panel, before);
+
+  return {
+    panel,
+    indexBtn,
+    reindexBtn,
+    cancelBtn,
+    clearBtn,
+    searchInput,
+    results,
+    scopeRow,
+    scopeCheckbox: document.getElementById('ls-forumScopeCurrent'),
+    status,
+    errors,
+  };
+}
+
+/**
+ * Render forum index/topic statistics.
+ *
+ * @param {object} stats
+ */
+function renderForumStats(stats) {
+  const safe = stats || {};
+  const topicCount = document.getElementById('ls-forumTopicCount');
+  const messageCount = document.getElementById('ls-forumMessageCount');
+  const sizeEl = document.getElementById('ls-forumIndexSize');
+  const topicStats = document.getElementById('ls-forumTopicStats');
+  const indexBtn = document.getElementById('ls-forumIndexBtn');
+  const reindexBtn = document.getElementById('ls-forumReindexBtn');
+
+  if (topicCount) topicCount.textContent = String(safe.topicsCount || 0);
+  if (messageCount) {
+    messageCount.textContent = String(safe.messagesCount || 0);
+  }
+  if (sizeEl) {
+    sizeEl.textContent = formatBytes(safe.sizeBytes);
+    const large = Number(safe.sizeBytes) >= 100 * 1024 * 1024;
+    sizeEl.classList.toggle('ls-stat-warning', large);
+    sizeEl.title = large
+      ? 'Индекс форума занимает много места; очистите старые темы'
+      : 'Приблизительный размер локального хранилища';
+  }
+
+  if (topicStats) {
+    if (safe.topic) {
+      const pages =
+        safe.topic.pageCount ||
+        (Number(safe.topic.lastPageParam) || 0) + 1;
+      const state = safe.topic.complete ? 'полностью' : 'частично';
+      topicStats.textContent = `В теме: ${
+        safe.topic.indexedComments || 0
+      } сообщений · ${pages} стр. · проиндексировано ${state}`;
+      topicStats.hidden = false;
+    } else {
+      topicStats.hidden = true;
+    }
+  }
+
+  if (indexBtn) {
+    if (!safe.topic) {
+      indexBtn.textContent = 'Индексировать тему';
+    } else if (safe.topic.complete) {
+      indexBtn.textContent = 'Обновить';
+    } else {
+      indexBtn.textContent = 'Продолжить';
+    }
+  }
+
+  if (reindexBtn) reindexBtn.hidden = !safe.topic;
+}
+
+/**
+ * @param {number|null|undefined} timestamp
+ */
+function renderForumLastIndexedAt(timestamp) {
+  const el = document.getElementById('ls-forumLastIndexed');
+  if (!el) return;
+
+  if (!timestamp) {
+    el.textContent = 'Индекс форума ещё не создавался';
+    return;
+  }
+
+  try {
+    el.textContent = `Индекс форума обновлён: ${new Date(
+      timestamp,
+    ).toLocaleString('ru-RU')}`;
+  } catch {
+    el.textContent = 'Индекс форума обновлён';
+  }
+}
+
+/**
+ * Show a forum status message.
+ *
+ * @param {string} message
+ * @param {'success'|'error'} [type]
+ */
+function showForumStatus(message, type = 'success') {
+  const statusEl = document.getElementById('ls-forumStatus');
+  if (!statusEl) return;
+
+  statusEl.className = `ls-status-area ls-status-${type}`;
+  statusEl.textContent = message;
+  statusEl.hidden = false;
+
+  if (statusEl._hideTimer) clearTimeout(statusEl._hideTimer);
+  statusEl._hideTimer = setTimeout(() => {
+    statusEl.hidden = true;
+    statusEl.textContent = '';
+  }, 6000);
+}
+
+/**
+ * @param {'no-index'|'no-query'|'no-topic-index'|'loading'} reason
+ */
+function renderForumEmptyState(reason) {
+  const container = document.getElementById('ls-forumResults');
+  if (!container) return;
+
+  if (reason === 'no-query') {
+    container.innerHTML =
+      '<div class="ls-empty-state">Введите запрос для поиска по форуму</div>';
+    return;
+  }
+
+  if (reason === 'no-topic-index') {
+    container.innerHTML =
+      '<div class="ls-empty-state">Эта тема ещё не проиндексирована. Нажмите «Индексировать тему».</div>';
+    return;
+  }
+
+  if (reason === 'loading') {
+    container.innerHTML =
+      '<div class="ls-loading">Идёт индексация темы...</div>';
+    return;
+  }
+
+  container.innerHTML =
+    '<div class="ls-empty-state">Индекс форума пуст. Откройте тему и нажмите «Индексировать тему».</div>';
+}
+
+/**
+ * Render forum indexing errors.
+ *
+ * @param {string[]} errors
+ */
+function renderForumErrors(errors) {
+  const container = document.getElementById('ls-forumErrors');
+  if (!container) return;
+
+  if (!errors || !errors.length) {
+    container.hidden = true;
+    container.innerHTML = '';
+    return;
+  }
+
+  const visible = errors.slice(0, 20);
+  container.innerHTML = `
+    <div class="ls-index-errors-header">Ошибки индексации форума</div>
+    <details>
+      <summary>Показать ${visible.length}${
+        errors.length > visible.length ? ` из ${errors.length}` : ''
+      }</summary>
+      <ul>${visible
+        .map((error) => `<li>${escapeHtml(error)}</li>`)
+        .join('')}</ul>
+    </details>
+  `;
+  container.hidden = false;
+}
+
+function forumSnippet(text, query) {
+  const normalized = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!normalized) return '[без текста]';
+  if (normalized.length <= 320) return normalized;
+
+  const lower = normalized.toLowerCase();
+  const queryLower = String(query || '').toLowerCase();
+  const found = queryLower ? lower.indexOf(queryLower) : -1;
+  const start = found > 120 ? found - 120 : 0;
+  const end = Math.min(normalized.length, start + 320);
+
+  return `${start > 0 ? '…' : ''}${normalized.slice(start, end)}${
+    end < normalized.length ? '…' : ''
+  }`;
+}
+
+function renderForumResultItem(result, index, query) {
+  const text = highlightText(forumSnippet(result.text, query), query);
+  const date = formatDate(result.timestamp);
+  const page =
+    result.page && Number(result.page) > 1
+      ? ` · стр. ${Number(result.page)}`
+      : '';
+  const kind = result.kind === 'post' ? ' · первое сообщение' : '';
+  const meta = [result.author || 'Неизвестно', date]
+    .filter(Boolean)
+    .join(' · ');
+  const href = result.url
+    ? ` href="${escapeAttribute(result.url)}"`
+    : '';
+  const tag = result.url ? 'a' : 'div';
+
+  return `
+    <${tag} class="ls-result-item" id="ls-forum-result-${index}" data-result-index="${index}" aria-selected="false"${href}>
+      <div class="ls-result-message">${text}</div>
+      <div class="ls-result-meta">${escapeHtml(meta)}${page}${kind}</div>
+    </${tag}>
+  `;
+}
+
+/**
+ * Render forum search results. Global results are grouped by topic; a single
+ * topic search is rendered as a flat list.
+ *
+ * @param {object[]} results
+ * @param {string} query
+ * @param {number} totalCount
+ * @param {number} limit
+ * @param {{groupByTopic?: boolean, canLoadMore?: boolean}} [options]
+ */
+function renderForumResults(results, query, totalCount, limit, options = {}) {
+  const container = document.getElementById('ls-forumResults');
+  if (!container) return;
+
+  if (!results || !results.length) {
+    container.innerHTML = '<div class="ls-no-results">Ничего не найдено</div>';
+    return;
+  }
+
+  const indexes = new Map();
+  results.forEach((result, index) => indexes.set(result, index));
+  const parts = [];
+
+  if (options.groupByTopic) {
+    const groups = new Map();
+    results.forEach((result) => {
+      const key = String(result.postId || '');
+      if (!groups.has(key)) {
+        const rawUrl = result.url || '';
+        const topicUrl = rawUrl
+          .replace(/#.*$/, '')
+          .replace(/\/page\d+\/?$/, '/');
+        groups.set(key, {
+          title: result.topicTitle || 'Без названия',
+          url: topicUrl,
+          items: [],
+        });
+      }
+      groups.get(key).items.push(result);
+    });
+
+    const sortedGroups = Array.from(groups.values()).sort((a, b) => {
+      const timeA = a.items[0] ? a.items[0].timestamp || 0 : 0;
+      const timeB = b.items[0] ? b.items[0].timestamp || 0 : 0;
+      return timeB - timeA;
+    });
+
+    sortedGroups.forEach((group) => {
+      const headerHref = group.url
+        ? ` href="${escapeAttribute(group.url)}"`
+        : '';
+      const headerTag = group.url ? 'a' : 'span';
+      parts.push(`
+        <div class="ls-forum-topic-group">
+          <div class="ls-forum-topic-header">
+            <${headerTag} class="ls-forum-topic-link"${headerHref}>${escapeHtml(
+              group.title,
+            )}</${headerTag}>
+            <span class="ls-partner-count">(${group.items.length})</span>
+          </div>
+          ${group.items
+            .map((result) =>
+              renderForumResultItem(result, indexes.get(result), query),
+            )
+            .join('')}
+        </div>
+      `);
+    });
+  } else {
+    results.forEach((result) => {
+      parts.push(renderForumResultItem(result, indexes.get(result), query));
+    });
+  }
+
+  if (totalCount > limit) {
+    parts.push(`
+      <div class="ls-results-footer">
+        Показаны первые ${limit} из ${totalCount} совпадений
+        ${
+          options.canLoadMore
+            ? '<button type="button" id="ls-forumLoadMoreBtn" class="ls-btn ls-btn-secondary">Показать ещё</button>'
+            : ''
+        }
+      </div>
+    `);
+  }
+
+  container.innerHTML = parts.join('');
+}
+
 // Export functions
 window.InlineUI = {
   createSearchPanel,
   createTalkSearchPanel,
+  createForumSearchPanel,
   renderStats,
   renderTalkStats,
+  renderForumStats,
   renderLastIndexedAt,
+  renderForumLastIndexedAt,
   renderIndexSize,
   showStaleBanner,
   hideStaleBanner,
   showReadNotice,
   hideReadNotice,
   renderIndexErrors,
+  renderForumErrors,
   clearIndexErrors,
   showStatus,
+  showForumStatus,
   showLoading,
   renderEmptyState,
+  renderForumEmptyState,
   renderResults,
+  renderForumResults,
 };

@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "LastSticker Search",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "minimum_chrome_version": "109",
-  "description": "Индексация, поиск и переход к сообщениям в диалогах на laststicker.ru",
+  "description": "Индексация, поиск и переход к сообщениям в диалогах и на форуме laststicker.ru",
   "permissions": ["storage", "scripting", "offscreen", "alarms"],
   "host_permissions": ["*://laststicker.ru/*", "*://www.laststicker.ru/*"],
   "background": {

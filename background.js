@@ -2,6 +2,7 @@
 // Handles message passing and script injection
 
 importScripts('fetch-retry.js');
+importScripts('forum-storage.js');
 
 console.log('[LS Search] Background script loaded');
 
@@ -32,6 +33,7 @@ const MESSAGES_KEY = 'ls_search_messages';
 let indexInProgress = false;
 let indexCancelRequested = false;
 let activeJob = null;
+let activeForumJob = null;
 let offscreenCreating = null;
 
 async function setExtensionIcon(enabled) {
@@ -251,7 +253,7 @@ async function runAutoIfDue() {
 }
 
 async function startAutoIndex() {
-  if (activeJob || indexInProgress) return;
+  if (activeJob || activeForumJob || indexInProgress) return;
   if (!(await isExtensionEnabled())) return;
 
   const job = {
@@ -279,7 +281,7 @@ async function startAutoIndex() {
 }
 
 async function startOffscreenIndex(job, sendResponse) {
-  if (activeJob) {
+  if (activeJob || activeForumJob) {
     sendResponse({ error: 'Индексация уже выполняется' });
     return;
   }
@@ -336,6 +338,56 @@ async function finishOffscreenJob(message) {
     job.sendResponse({ result });
   }
   scheduleAutoAlarm();
+}
+
+async function startForumIndex(job, sendResponse) {
+  if (activeJob || activeForumJob) {
+    sendResponse({ error: 'Индексация уже выполняется' });
+    return;
+  }
+
+  activeForumJob = { ...job };
+
+  try {
+    await ensureOffscreenDocument();
+    const response = await sendToOffscreen({
+      action: 'startForumIndex',
+      jobId: job.jobId,
+      postId: job.postId,
+      mode: job.mode,
+      source: job.source,
+    });
+    if (response && response.error) {
+      throw new Error(response.error);
+    }
+
+    sendResponse({ started: true });
+  } catch (e) {
+    activeForumJob = null;
+    setBadgeText('!', '#993333');
+    sendResponse({ error: e.message });
+  }
+}
+
+function finishForumJob(message) {
+  const job = activeForumJob;
+  if (!job || job.jobId !== message.jobId) return;
+
+  activeForumJob = null;
+  setBadgeText('');
+
+  if (job.tabId) {
+    chrome.tabs.sendMessage(
+      job.tabId,
+      {
+        action: 'forumIndexFinished',
+        result: message.result || {},
+      },
+      () => {
+        void chrome.runtime.lastError;
+      },
+    );
+  }
 }
 
 chrome.alarms.onAlarm.addListener((alarm) => {
@@ -395,6 +447,132 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.target === 'background' && request.action === 'indexFinished') {
     finishOffscreenJob(request);
     return false;
+  }
+
+  if (
+    request.target === 'background' &&
+    request.action === 'forumIndexProgress'
+  ) {
+    if (activeForumJob && request.jobId === activeForumJob.jobId) {
+      const percent = request.total
+        ? Math.round((request.done / request.total) * 100)
+        : 0;
+      setBadgeText(request.total ? `${percent}%` : '', '#2444bc');
+
+      if (activeForumJob.tabId) {
+        chrome.tabs.sendMessage(
+          activeForumJob.tabId,
+          {
+            action: 'forumIndexProgress',
+            postId: request.postId,
+            done: request.done,
+            total: request.total,
+            messageCount: request.messageCount,
+            currentPage: request.currentPage,
+          },
+          () => {
+            void chrome.runtime.lastError;
+          },
+        );
+      }
+    }
+    return false;
+  }
+
+  if (
+    request.target === 'background' &&
+    request.action === 'forumIndexFinished'
+  ) {
+    finishForumJob(request);
+    return false;
+  }
+
+  if (request.action === 'forumStartIndex') {
+    (async () => {
+      if (!(await isExtensionEnabled())) {
+        sendResponse({ error: 'Расширение отключено' });
+        return;
+      }
+
+      await startForumIndex(
+        {
+          jobId: `forum-${Date.now()}`,
+          postId: String(request.postId || ''),
+          mode: request.mode || 'topic',
+          source: 'manual',
+          tabId: sender.tab ? sender.tab.id : null,
+        },
+        sendResponse,
+      );
+    })();
+    return true;
+  }
+
+  if (request.action === 'forumCancelIndex') {
+    (async () => {
+      const cancelled = Boolean(activeForumJob);
+      if (cancelled) {
+        await sendToOffscreen({ action: 'cancelForumIndex' }).catch(() => {});
+      }
+      sendResponse({ cancelled });
+    })();
+    return true;
+  }
+
+  if (request.action === 'forumClear') {
+    (async () => {
+      if (activeForumJob) {
+        await sendToOffscreen({ action: 'cancelForumIndex' }).catch(() => {});
+      }
+
+      try {
+        await LSForumStorage.clearAll();
+        sendResponse({ result: true });
+      } catch (e) {
+        sendResponse({ error: e.message });
+      }
+    })();
+    return true;
+  }
+
+  if (request.action === 'forumDeleteTopic') {
+    (async () => {
+      try {
+        await LSForumStorage.deleteTopic(request.postId);
+        sendResponse({ result: true });
+      } catch (e) {
+        sendResponse({ error: e.message });
+      }
+    })();
+    return true;
+  }
+
+  if (request.action === 'forumSearch') {
+    (async () => {
+      try {
+        const result = await LSForumStorage.searchComments(request.query, {
+          postId: request.postId || '',
+          limit: request.limit || 200,
+          offset: request.offset || 0,
+        });
+        sendResponse({ result });
+      } catch (e) {
+        sendResponse({ error: e.message });
+      }
+    })();
+    return true;
+  }
+
+  if (request.action === 'forumStats') {
+    (async () => {
+      try {
+        const result = await LSForumStorage.getStats(request.postId || '');
+        sendResponse({ result });
+      } catch (e) {
+        sendResponse({ error: e.message });
+      }
+    })();
+    return true;
   }
 
   // Offscreen documents do not get chrome.storage in this Chrome version.

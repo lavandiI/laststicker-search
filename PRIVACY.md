@@ -4,20 +4,26 @@ Effective date / Дата вступления в силу: 2026-11-01
 
 ## Русский
 
-**LastSticker Search** — расширение Chrome для локальной индексации и поиска сообщений в собственных диалогах на `laststicker.ru`.
+**LastSticker Search** — расширение Chrome для локальной индексации и поиска сообщений в собственных диалогах и на форуме `laststicker.ru`.
 
 ### Какие данные обрабатываются
 
-- текст сообщений;
-- имена собеседников;
+- текст сообщений в диалогах и комментариев на форуме;
+- имена собеседников и авторов комментариев;
 - даты и время сообщений;
-- идентификаторы диалогов и сообщений;
-- URL страниц диалогов;
+- идентификаторы диалогов, тем и сообщений;
+- URL страниц диалогов и тем;
+- названия тем, категории и метки форума;
 - последний поисковый запрос и время индексации.
 
 ### Где хранятся данные
 
-Данные сохраняются только локально в браузере пользователя в `chrome.storage.local`. При обновлении со старой версии данные могут быть перенесены из `localStorage` сайта и удалены оттуда. Расширение не отправляет данные на серверы разработчика или третьих лиц.
+Данные сохраняются только локально в браузере пользователя:
+
+- индекс личных диалогов — в `chrome.storage.local`;
+- индекс форума — в IndexedDB расширения (`laststicker-search-forum`).
+
+При обновлении со старой версии данные диалогов могут быть перенесены из `localStorage` сайта и удалены оттуда. Расширение не отправляет данные на серверы разработчика или третьих лиц.
 
 ### Как используются данные
 
@@ -25,11 +31,13 @@ Effective date / Дата вступления в силу: 2026-11-01
 
 ### Автообновление
 
-Автообновление включено по умолчанию. Если оно включено, расширение раз в 6 часов проверяет список диалогов и обновляет локальный индекс. Автообновление пропускается, если в аккаунте есть непрочитанные сообщения или ещё не был выполнен полный индекс. Автообновление не работает, когда браузер закрыт. Его можно отключить в панели расширения.
+Автообновление диалогов включено по умолчанию. Если оно включено, расширение раз в 6 часов проверяет список диалогов и обновляет локальный индекс. Автообновление пропускается, если в аккаунте есть непрочитанные сообщения или ещё не был выполнен полный индекс. Автообновление не работает, когда браузер закрыт. Его можно отключить в панели расширения.
+
+Форум индексируется только вручную: пользователь открывает тему и нажимает «Индексировать тему». Автоматического обхода всего форума нет.
 
 ### Доступ к сайту
 
-Расширение работает только на `laststicker.ru` и `www.laststicker.ru`. Оно читает страницы диалогов, которые пользователь и так может открыть в своём аккаунте. Расширение не обходит авторизацию и не получает доступ к чужим аккаунтам.
+Расширение работает только на `laststicker.ru` и `www.laststicker.ru`. Оно читает страницы диалогов и форума, которые пользователь и так может открыть. Расширение не обходит авторизацию и не получает доступ к чужим аккаунтам.
 
 ### Разрешения
 
@@ -43,7 +51,7 @@ Effective date / Дата вступления в силу: 2026-11-01
 
 ### Удаление данных
 
-Кнопка «Очистить» в панели удаляет индекс. Удаление расширения также удаляет его локальные данные.
+Кнопка «Очистить» удаляет индекс диалогов, кнопка «Очистить форум» — индекс форума. Удаление расширения также удаляет оба локальных индекса.
 
 ### Дети
 
@@ -59,20 +67,26 @@ Effective date / Дата вступления в силу: 2026-11-01
 
 ## English
 
-**LastSticker Search** is a Chrome extension that locally indexes and searches messages in your own dialogs on `laststicker.ru`.
+**LastSticker Search** is a Chrome extension that locally indexes and searches messages in your own dialogs and on the forum at `laststicker.ru`.
 
 ### Data processed
 
-- message text;
-- conversation partner names;
+- message text in dialogs and comments on the forum;
+- conversation partner and comment author names;
 - message dates and times;
-- dialog and message identifiers;
-- dialog page URLs;
+- dialog, topic, and message identifiers;
+- dialog and topic page URLs;
+- topic titles, categories, and forum tags;
 - the last search query and the last indexing time.
 
 ### Where data is stored
 
-Data is stored only locally in the user's browser in `chrome.storage.local`. When upgrading from an older version, data may be migrated from the site's `localStorage` and removed from there. The extension does not send data to the developer's or any third party's servers.
+Data is stored only locally in the user's browser:
+
+- the dialog index in `chrome.storage.local`;
+- the forum index in the extension's IndexedDB (`laststicker-search-forum`).
+
+When upgrading from an older version, dialog data may be migrated from the site's `localStorage` and removed from there. The extension does not send data to the developer's or any third party's servers.
 
 ### How data is used
 
@@ -80,11 +94,13 @@ Only to show statistics, search messages, and navigate to a found message. Data 
 
 ### Automatic refresh
 
-Automatic refresh is enabled by default. When enabled, the extension checks the dialog list and updates the local index every 6 hours. It is skipped when the account has unread messages or when a complete index has not been built yet. It does not run while the browser is closed. It can be disabled in the extension panel.
+Automatic refresh of dialogs is enabled by default. When enabled, the extension checks the dialog list and updates the local index every 6 hours. It is skipped when the account has unread messages or when a complete index has not been built yet. It does not run while the browser is closed. It can be disabled in the extension panel.
+
+The forum is indexed manually: the user opens a topic and clicks "Index topic". There is no automatic crawl of the entire forum.
 
 ### Site access
 
-The extension works only on `laststicker.ru` and `www.laststicker.ru`. It reads dialog pages that the user can already open in their own account. It does not bypass authentication or access other users' accounts.
+The extension works only on `laststicker.ru` and `www.laststicker.ru`. It reads dialog and forum pages that the user can already open. It does not bypass authentication or access other users' accounts.
 
 ### Permissions
 
@@ -98,7 +114,7 @@ The extension does not request access to browsing history and does not read tabs
 
 ### Data deletion
 
-The "Clear" button in the panel deletes the index. Uninstalling the extension also deletes its local data.
+The "Clear" button deletes the dialog index; "Clear forum" deletes the forum index. Uninstalling the extension also deletes both local indexes.
 
 ### Children
 

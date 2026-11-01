@@ -1,6 +1,6 @@
 {
   "name": "laststicker-search-extension",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "private": true,
   "description": "Chrome-расширение для индексации, поиска и перехода к сообщениям на laststicker.ru",
   "license": "MIT",
@@ -22,6 +22,7 @@
     "@eslint/js": "^10.0.1",
     "eslint": "^10.14.0",
     "eslint-config-prettier": "^10.1.8",
+    "fake-indexeddb": "^6.2.7",
     "globals": "^17.13.0",
     "jest": "^30.5.2",
     "jest-environment-jsdom": "^30.5.2",

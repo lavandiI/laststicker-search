@@ -12,6 +12,12 @@
   let lastMainSearch = { query: '', results: [], limit: 200 };
   let mainKeyboard = null;
   let talkKeyboard = null;
+  let forumKeyboard = null;
+  let currentForumPostId = null;
+  let forumProgressListenerAttached = false;
+  let forumPanelInitialized = false;
+  let forumIndexing = false;
+  let lastForumSearch = { query: '', results: [], total: 0, limit: 200 };
   const resolvedMessageTargets = new Map();
 
   const DAY_MS = 24 * 60 * 60 * 1000;
@@ -32,6 +38,27 @@
   function getPartnerNameFromPage() {
     const titleLink = document.querySelector('#content h1 a');
     return titleLink ? titleLink.textContent.trim() : '';
+  }
+
+  function isForumTopicPath(path) {
+    return /^\/blog\/post\d+(?:\/page\d+)?\/?$/.test(path || '');
+  }
+
+  function getForumTopicIdFromPath(path) {
+    const match = String(path || '').match(
+      /^\/blog\/post(\d+)(?:\/page\d+)?\/?$/,
+    );
+    return match ? match[1] : '';
+  }
+
+  function getForumPageCountFromDocument() {
+    let lastPage = 0;
+    document.querySelectorAll('#pages a[href*="/page"]').forEach((link) => {
+      const href = link.getAttribute('href') || '';
+      const match = href.match(/\/page(\d+)\/?/);
+      if (match) lastPage = Math.max(lastPage, parseInt(match[1], 10));
+    });
+    return lastPage + 1;
   }
 
   function isEditableElement(element) {
@@ -247,6 +274,24 @@
     
     const path = window.location.pathname;
     
+    // Check if this is a forum topic page
+    if (isForumTopicPath(path)) {
+      console.log('[LS Search] Forum topic page detected, initializing forum panel');
+      currentForumPostId = getForumTopicIdFromPath(path);
+      initForumPage();
+      return;
+    }
+
+    // Check if this is a forum index or category page
+    if (
+      document.querySelector('#content .forum_list') ||
+      document.getElementById('comments_list')
+    ) {
+      console.log('[LS Search] Forum page detected, initializing forum panel');
+      initForumPage();
+      return;
+    }
+
     // Check if this is a single talk page
     if (isSingleTalkPath(path)) {
       console.log('[LS Search] Single talk page detected, initializing talk panel');
@@ -408,6 +453,449 @@
     }
   }
   
+  // ---------------------------------------------------------------------------
+  // Forum panel
+  // ---------------------------------------------------------------------------
+
+  function forumRpc(message) {
+    return new Promise((resolve, reject) => {
+      if (
+        typeof chrome === 'undefined' ||
+        !chrome.runtime ||
+        !chrome.runtime.sendMessage
+      ) {
+        reject(new Error('Доступно только в расширении'));
+        return;
+      }
+
+      chrome.runtime.sendMessage(message, (response) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        if (!response) {
+          reject(new Error('Нет ответа от расширения'));
+          return;
+        }
+        if (response.error) {
+          reject(new Error(response.error));
+          return;
+        }
+        resolve(
+          response.result !== undefined ? response.result : response,
+        );
+      });
+    });
+  }
+
+  function isForumScopeCurrent() {
+    const checkbox = document.getElementById('ls-forumScopeCurrent');
+    return Boolean(checkbox && !checkbox.disabled && checkbox.checked);
+  }
+
+  function setForumIndexingState(running) {
+    forumIndexing = running;
+    const indexBtn = document.getElementById('ls-forumIndexBtn');
+    const reindexBtn = document.getElementById('ls-forumReindexBtn');
+    const cancelBtn = document.getElementById('ls-forumCancelBtn');
+
+    if (indexBtn) indexBtn.disabled = running;
+    if (reindexBtn) reindexBtn.disabled = running;
+    if (cancelBtn) cancelBtn.hidden = !running;
+  }
+
+  async function loadForumStats() {
+    return forumRpc({
+      action: 'forumStats',
+      postId: currentForumPostId || '',
+    });
+  }
+
+  async function refreshForumPanel() {
+    const input = document.getElementById('ls-forumSearchInput');
+    let stats;
+    try {
+      stats = await loadForumStats();
+    } catch (e) {
+      window.InlineUI.showForumStatus(`Ошибка: ${e.message}`, 'error');
+      window.InlineUI.renderForumEmptyState('no-index');
+      return;
+    }
+
+    window.InlineUI.renderForumStats(stats);
+    window.InlineUI.renderForumLastIndexedAt(stats.lastIndexedAt);
+
+    const scopeCheckbox = document.getElementById('ls-forumScopeCurrent');
+    const hasTopicIndex = Boolean(
+      stats.topic && Number(stats.topic.indexedComments) > 0,
+    );
+
+    if (scopeCheckbox) {
+      const wasDisabled = scopeCheckbox.disabled;
+      scopeCheckbox.disabled = !hasTopicIndex;
+      if (!hasTopicIndex) {
+        scopeCheckbox.checked = false;
+      } else if (wasDisabled) {
+        scopeCheckbox.checked = true;
+      }
+    }
+
+    const query = input ? input.value.trim() : '';
+    if (query) {
+      await performForumSearch(query, { resetLimit: true });
+    } else if (Number(stats.messagesCount) > 0) {
+      window.InlineUI.renderForumEmptyState('no-query');
+    } else {
+      window.InlineUI.renderForumEmptyState('no-index');
+    }
+  }
+
+  async function initForumPage() {
+    let attempts = 0;
+    const maxAttempts = 20;
+
+    function checkDependencies() {
+      attempts++;
+
+      if (window.InlineUI) {
+        injectStyles();
+
+        const elements = window.InlineUI.createForumSearchPanel({
+          postId: currentForumPostId || '',
+          isTopicPage: Boolean(currentForumPostId),
+        });
+
+        if (!elements) {
+          console.log('[LS Search] Could not create forum panel');
+          window.InlinePanelReady = true;
+          return;
+        }
+
+        initForumPanel(elements);
+        window.InlinePanelReady = true;
+      } else if (attempts < maxAttempts) {
+        setTimeout(checkDependencies, 100);
+      } else {
+        console.log('[LS Search] Dependencies not loaded for forum page');
+        window.InlinePanelReady = true;
+      }
+    }
+
+    checkDependencies();
+  }
+
+  async function initForumPanel(elements) {
+    if (forumPanelInitialized || window._lsForumPanelInitialized) return;
+    forumPanelInitialized = true;
+    window._lsForumPanelInitialized = true;
+
+    const { indexBtn, reindexBtn, cancelBtn, clearBtn, searchInput, results } =
+      elements;
+
+    attachForumProgressListener();
+
+    if (!window._lsForumHashListener) {
+      window._lsForumHashListener = true;
+      window.addEventListener('hashchange', highlightForumTarget);
+    }
+
+    if (indexBtn && !indexBtn._forumClickListener) {
+      indexBtn._forumClickListener = true;
+      indexBtn.addEventListener('click', onForumIndexClick);
+    }
+
+    if (reindexBtn && !reindexBtn._forumClickListener) {
+      reindexBtn._forumClickListener = true;
+      reindexBtn.addEventListener('click', onForumReindexClick);
+    }
+
+    if (cancelBtn && !cancelBtn._forumClickListener) {
+      cancelBtn._forumClickListener = true;
+      cancelBtn.addEventListener('click', onForumCancelClick);
+    }
+
+    if (clearBtn && !clearBtn._forumClickListener) {
+      clearBtn._forumClickListener = true;
+      clearBtn.addEventListener('click', onForumClearClick);
+    }
+
+    const scopeCheckbox = document.getElementById('ls-forumScopeCurrent');
+    if (scopeCheckbox && !scopeCheckbox._forumScopeListener) {
+      scopeCheckbox._forumScopeListener = true;
+      scopeCheckbox.addEventListener('change', () => {
+        if (searchInput && searchInput.value.trim()) {
+          performForumSearch(searchInput.value.trim(), { resetLimit: true });
+        }
+      });
+    }
+
+    if (searchInput && !searchInput._hasForumSearchListener) {
+      searchInput._hasForumSearchListener = true;
+      let searchTimeout;
+      searchInput.addEventListener('input', () => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+          const query = searchInput.value.trim();
+          if (query) {
+            performForumSearch(query, { resetLimit: true });
+          } else {
+            window.InlineUI.renderForumEmptyState('no-query');
+          }
+        }, 300);
+      });
+    }
+
+    if (results && !results._hasForumResultsClickListener) {
+      results._hasForumResultsClickListener = true;
+      results.addEventListener('click', onForumResultsClick);
+    }
+
+    forumKeyboard = setupKeyboardNavigation(searchInput, results, (item) =>
+      item.click(),
+    );
+
+    await refreshForumPanel();
+    highlightForumTarget();
+  }
+
+  async function performForumSearch(query, options = {}) {
+    if (!query) {
+      window.InlineUI.renderForumEmptyState('no-query');
+      return;
+    }
+
+    if (options.resetLimit) lastForumSearch.limit = 200;
+    const postId = isForumScopeCurrent() ? currentForumPostId : '';
+    const limit = Math.max(200, lastForumSearch.limit || 200);
+
+    try {
+      const result = await forumRpc({
+        action: 'forumSearch',
+        query,
+        postId: postId || '',
+        limit,
+        offset: 0,
+      });
+
+      lastForumSearch = {
+        query,
+        results: result.results || [],
+        total: Number(result.total) || 0,
+        limit,
+      };
+      renderLastForumSearch();
+    } catch (e) {
+      window.InlineUI.showForumStatus(
+        `Ошибка поиска по форуму: ${e.message}`,
+        'error',
+      );
+    }
+  }
+
+  function renderLastForumSearch() {
+    const groupByTopic = !isForumScopeCurrent();
+    window.InlineUI.renderForumResults(
+      lastForumSearch.results,
+      lastForumSearch.query,
+      lastForumSearch.total,
+      lastForumSearch.limit,
+      {
+        groupByTopic,
+        canLoadMore: lastForumSearch.total > lastForumSearch.limit,
+      },
+    );
+    if (forumKeyboard) forumKeyboard.reset();
+  }
+
+  function onForumResultsClick(event) {
+    const loadMore = event.target.closest('#ls-forumLoadMoreBtn');
+    if (!loadMore) return;
+
+    event.preventDefault();
+    lastForumSearch.limit += 200;
+    performForumSearch(lastForumSearch.query, { resetLimit: false });
+  }
+
+  async function startForumIndex(mode) {
+    if (!currentForumPostId || forumIndexing) return;
+
+    setForumIndexingState(true);
+    window.InlineUI.renderForumErrors([]);
+    window.InlineUI.showForumStatus('Подготовка индексации форума...', 'success');
+
+    try {
+      await forumRpc({
+        action: 'forumStartIndex',
+        postId: currentForumPostId,
+        mode,
+      });
+    } catch (e) {
+      setForumIndexingState(false);
+      window.InlineUI.showForumStatus(
+        `Не удалось начать индексацию: ${e.message}`,
+        'error',
+      );
+      window.InlineUI.renderForumErrors([e.message]);
+    }
+  }
+
+  async function confirmLargeForumTopic() {
+    const pageCount = getForumPageCountFromDocument();
+    if (pageCount <= 200) return true;
+
+    const estimated = Math.max(pageCount * 50, 0);
+    return window.confirm(
+      `В теме ${pageCount} страниц и примерно ${estimated} сообщений. ` +
+        'Индексация может занять несколько минут. Продолжить?',
+    );
+  }
+
+  async function onForumIndexClick(event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    if (!currentForumPostId || forumIndexing) return;
+
+    let stats;
+    try {
+      stats = await loadForumStats();
+    } catch (e) {
+      window.InlineUI.showForumStatus(`Ошибка: ${e.message}`, 'error');
+      return;
+    }
+
+    if (!(await confirmLargeForumTopic())) return;
+    await startForumIndex(stats.topic ? 'update' : 'topic');
+  }
+
+  async function onForumReindexClick(event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    if (!currentForumPostId || forumIndexing) return;
+
+    const confirmed = window.confirm(
+      'Удалить индекс этой темы и собрать её заново?',
+    );
+    if (!confirmed) return;
+    if (!(await confirmLargeForumTopic())) return;
+    await startForumIndex('reindex');
+  }
+
+  async function onForumCancelClick(event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+
+    try {
+      await forumRpc({ action: 'forumCancelIndex' });
+      window.InlineUI.showForumStatus('Останавливаю индексацию...', 'success');
+    } catch (e) {
+      window.InlineUI.showForumStatus(`Ошибка отмены: ${e.message}`, 'error');
+    }
+  }
+
+  async function onForumClearClick(event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+
+    const confirmed = window.confirm(
+      'Удалить индекс форума? Личные диалоги останутся.',
+    );
+    if (!confirmed) return;
+
+    try {
+      await forumRpc({ action: 'forumClear' });
+      lastForumSearch = { query: '', results: [], total: 0, limit: 200 };
+      setForumIndexingState(false);
+      const input = document.getElementById('ls-forumSearchInput');
+      if (input) input.value = '';
+      window.InlineUI.renderForumErrors([]);
+      window.InlineUI.renderForumEmptyState('no-index');
+      window.InlineUI.showForumStatus('Индекс форума очищен', 'success');
+      await refreshForumPanel();
+    } catch (e) {
+      window.InlineUI.showForumStatus(`Ошибка очистки: ${e.message}`, 'error');
+    }
+  }
+
+  function attachForumProgressListener() {
+    if (
+      forumProgressListenerAttached ||
+      typeof chrome === 'undefined' ||
+      !chrome.runtime ||
+      !chrome.runtime.onMessage
+    ) {
+      return;
+    }
+
+    forumProgressListenerAttached = true;
+    chrome.runtime.onMessage.addListener((message) => {
+      if (!message) return;
+
+      if (message.action === 'forumIndexProgress') {
+        setForumIndexingState(true);
+        window.InlineUI.showForumStatus(
+          `Индексация: ${message.done}/${message.total} страниц, ${
+            message.messageCount || 0
+          } сообщений`,
+          'success',
+        );
+        return;
+      }
+
+      if (message.action === 'forumIndexFinished') {
+        setForumIndexingState(false);
+        const result = message.result || {};
+
+        const errors = result.errors || [];
+        if (result.error) {
+          errors.unshift(result.error);
+          window.InlineUI.showForumStatus(
+            `Ошибка индексации: ${result.error}`,
+            'error',
+          );
+        } else if (result.cancelled) {
+          window.InlineUI.showForumStatus('Индексация отменена', 'success');
+        } else {
+          window.InlineUI.showForumStatus(
+            `Готово: ${result.messageCount || 0} сообщений`,
+            'success',
+          );
+        }
+
+        window.InlineUI.renderForumErrors(errors);
+        refreshForumPanel();
+      }
+    });
+  }
+
+  function highlightForumTarget() {
+    const match = String(window.location.hash || '').match(/^#c(\d+)$/);
+    if (!match) return;
+
+    const commentId = match[1];
+    const target =
+      document.getElementById(`comment${commentId}`) ||
+      document.querySelector(`[name="c${commentId}"]`);
+
+    if (!target) return;
+
+    target.classList.add('ls-forum-target');
+    setTimeout(() => {
+      target.classList.remove('ls-forum-target');
+    }, 6000);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Dialog helpers
+  // ---------------------------------------------------------------------------
+
   // Build the dialog base path, dropping a pageN suffix.
   function getTalkBasePath(path) {
     const base = path.replace(/page\d+\/?$/, '');
@@ -1722,6 +2210,9 @@
       resolveMessageTarget,
       setupKeyboardNavigation,
       isEditableElement,
+      isForumTopicPath,
+      getForumTopicIdFromPath,
+      getForumPageCountFromDocument,
     };
   }
   
