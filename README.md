@@ -55,7 +55,7 @@
 
 ### Chrome Web Store
 
-Публикация готовится. После прохождения ревью расширение можно будет установить из магазина, и Chrome будет обновлять его автоматически.
+[Установить из Chrome Web Store](https://chromewebstore.google.com/detail/laststicker-search/gnifahljoihlmlekcmgcoaflchhdicoc). Chrome будет обновлять расширение автоматически.
 
 ### Вручную из ZIP
 
