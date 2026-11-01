@@ -861,7 +861,9 @@ function createForumSearchPanel(options = {}) {
   clearBtn.id = 'ls-forumClearBtn';
   clearBtn.className = 'ls-btn ls-btn-danger';
   clearBtn.textContent = 'Очистить';
-  clearBtn.title = 'Удалить индекс форума; личные диалоги останутся';
+  clearBtn.title = options.isTopicPage
+    ? 'Удалить индекс этой темы; остальные темы останутся'
+    : 'Удалить индекс форума; личные диалоги останутся';
 
   const stats = document.createElement('div');
   stats.className = 'ls-stats';

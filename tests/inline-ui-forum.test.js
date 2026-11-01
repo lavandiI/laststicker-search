@@ -23,18 +23,15 @@ describe('forum inline UI', () => {
   test('inserts the forum panel under the dashed line and above the topic list', () => {
     const panel = document.getElementById('ls-forum-panel');
     expect(panel.previousElementSibling.classList.contains('line')).toBe(true);
-    expect(panel.nextElementSibling.textContent).toContain(
-      'Обсуждаемые темы',
-    );
+    expect(panel.nextElementSibling.textContent).toContain('Обсуждаемые темы');
   });
 
   test('creates a separate forum panel with controls', () => {
     expect(document.getElementById('ls-forum-panel')).toBeTruthy();
     expect(document.getElementById('ls-forumIndexBtn')).toBeTruthy();
     expect(document.getElementById('ls-forumReindexBtn')).toBeTruthy();
-    expect(document.getElementById('ls-forumClearBtn').textContent).toBe(
-      'Очистить',
-    );
+    expect(document.getElementById('ls-forumClearBtn').textContent).toBe('Очистить');
+    expect(document.getElementById('ls-forumClearBtn').title).toContain('индекс форума');
     expect(document.getElementById('ls-forumScopeCurrent')).toBeNull();
     expect(document.getElementById('ls-forumSearchInput').getAttribute('aria-label')).toBe(
       'Поиск по сообщениям форума',
@@ -138,6 +135,7 @@ describe('forum inline UI', () => {
     const panel = document.getElementById('ls-forum-panel');
     expect(panel.previousElementSibling.classList.contains('line')).toBe(true);
     expect(panel.nextElementSibling.id).toBe('comments_list');
+    expect(document.getElementById('ls-forumClearBtn').title).toContain('этой темы');
     expect(document.getElementById('ls-forumScopeCurrent')).toBeNull();
   });
 });

@@ -538,7 +538,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'forumDeleteTopic') {
     (async () => {
       try {
-        await LSForumStorage.deleteTopic(request.postId);
+        const postId = String(request.postId || '');
+        const jobForTopic =
+          activeForumJob && String(activeForumJob.postId) === postId;
+
+        if (jobForTopic) {
+          await sendToOffscreen({ action: 'cancelForumIndex' }).catch(
+            () => {},
+          );
+          await LSForumStorage.bumpGeneration();
+        }
+
+        await LSForumStorage.deleteTopic(postId);
         sendResponse({ result: true });
       } catch (e) {
         sendResponse({ error: e.message });

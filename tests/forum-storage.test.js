@@ -105,6 +105,16 @@ describe('forum storage', () => {
     });
   });
 
+  test('bumps generation without deleting existing comments', async () => {
+    await storage.putComments([comment()], 0);
+    const before = await storage.getGeneration();
+
+    await storage.bumpGeneration();
+
+    expect(await storage.getGeneration()).toBe(before + 1);
+    expect(await storage.countComments()).toBe(1);
+  });
+
   test('rejects writes after the index was cleared', async () => {
     await storage.putComments([comment()], 0);
     await storage.clearAll();

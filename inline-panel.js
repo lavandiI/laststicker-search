@@ -521,7 +521,9 @@
     window.InlineUI.renderForumLastIndexedAt(stats.lastIndexedAt);
 
     const query = input ? input.value.trim() : '';
-    if (query) {
+    if (currentForumPostId && !stats.topic) {
+      window.InlineUI.renderForumEmptyState('no-topic-index');
+    } else if (query) {
       await performForumSearch(query, { resetLimit: true });
     } else if (Number(stats.messagesCount) > 0) {
       window.InlineUI.renderForumEmptyState('no-query');
@@ -774,20 +776,32 @@
       event.stopPropagation();
     }
 
+    const isTopic = Boolean(currentForumPostId);
     const confirmed = window.confirm(
-      'Удалить индекс форума? Личные диалоги останутся.',
+      isTopic
+        ? 'Удалить индекс этой темы? Остальные темы останутся.'
+        : 'Удалить индекс форума? Личные диалоги останутся.',
     );
     if (!confirmed) return;
 
     try {
-      await forumRpc({ action: 'forumClear' });
+      await forumRpc(
+        isTopic
+          ? { action: 'forumDeleteTopic', postId: currentForumPostId }
+          : { action: 'forumClear' },
+      );
       lastForumSearch = { query: '', results: [], total: 0, limit: 200 };
       setForumIndexingState(false);
       const input = document.getElementById('ls-forumSearchInput');
       if (input) input.value = '';
       window.InlineUI.renderForumErrors([]);
-      window.InlineUI.renderForumEmptyState('no-index');
-      window.InlineUI.showForumStatus('Индекс форума очищен', 'success');
+      window.InlineUI.renderForumEmptyState(
+        isTopic ? 'no-topic-index' : 'no-index',
+      );
+      window.InlineUI.showForumStatus(
+        isTopic ? 'Индекс темы очищен' : 'Индекс форума очищен',
+        'success',
+      );
       await refreshForumPanel();
     } catch (e) {
       window.InlineUI.showForumStatus(`Ошибка очистки: ${e.message}`, 'error');

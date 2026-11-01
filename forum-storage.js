@@ -312,6 +312,33 @@
     });
   }
 
+  async function bumpGeneration() {
+    const db = await openDb();
+
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_META, 'readwrite');
+      const metaStore = tx.objectStore(STORE_META);
+      const generationRequest = metaStore.get('generation');
+
+      generationRequest.onsuccess = () => {
+        const current = generationRequest.result
+          ? parseInt(generationRequest.result.value, 10) || 0
+          : 0;
+        metaStore.put({ key: 'generation', value: current + 1 });
+      };
+      generationRequest.onerror = () => {
+        try {
+          tx.abort();
+        } catch {
+          // The transaction is already aborted.
+        }
+        reject(generationRequest.error || new Error('Ошибка IndexedDB'));
+      };
+
+      transactionDone(tx, () => resolve(true), reject, true);
+    });
+  }
+
   async function clearAll() {
     const db = await openDb();
 
@@ -490,6 +517,7 @@
     getMeta,
     setMeta,
     getGeneration,
+    bumpGeneration,
     putComments,
     putTopic,
     getTopic,
