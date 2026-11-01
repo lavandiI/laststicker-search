@@ -88,8 +88,31 @@ describe('forum indexer', () => {
       title: 'Тестовая тема',
       lastPageParam: 1,
       lastCompletePageParam: 1,
+      lastCommentId: '2',
       complete: true,
     });
     expect(metadata.lastIndexedAt).toEqual(expect.any(Number));
+  });
+
+  test('does not write anything when the topic has no new messages', async () => {
+    const indexer = require('../forum-indexer');
+    fetchMock.fetchWithRetry.mockClear();
+    LSForumStorage.putComments.mockClear();
+    LSForumStorage.putTopic.mockClear();
+    const commentsBefore = comments.length;
+    const topicBefore = { ...topic };
+
+    const result = await indexer.indexTopic({
+      jobId: 'no-change',
+      postId: '1',
+      mode: 'update',
+    });
+
+    expect(result.noChanges).toBe(true);
+    expect(fetchMock.fetchWithRetry).toHaveBeenCalledTimes(2);
+    expect(comments).toHaveLength(commentsBefore);
+    expect(topic).toEqual(topicBefore);
+    expect(LSForumStorage.putComments).not.toHaveBeenCalled();
+    expect(LSForumStorage.putTopic).not.toHaveBeenCalled();
   });
 });

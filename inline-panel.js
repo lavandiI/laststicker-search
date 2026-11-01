@@ -823,6 +823,8 @@
           );
         } else if (result.cancelled) {
           window.InlineUI.showForumStatus('Индексация отменена', 'success');
+        } else if (result.noChanges) {
+          window.InlineUI.showForumStatus('Новых сообщений нет', 'success');
         } else {
           window.InlineUI.showForumStatus(
             `Готово: ${result.messageCount || 0} сообщений`,

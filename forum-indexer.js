@@ -165,13 +165,74 @@
     const errors = [];
     let lastCompletePageParam = startPageParam - 1;
     let messageCount = Number(existing && existing.indexedComments) || 0;
+    let lastCommentId = existing ? String(existing.lastCommentId || '') : '';
     let cancelled = false;
     let done = 0;
+    let preloadedLastPage = null;
+
+    // If the topic is already complete and its last page still ends with the
+    // same comment, there is nothing to write. This avoids rewriting the same
+    // records (and growing the IndexedDB file) on every "Update" click.
+    if (
+      existing &&
+      existing.complete &&
+      Number(existing.lastPageParam) === lastPageParam &&
+      existing.lastCommentId !== undefined
+    ) {
+      try {
+        const lastPageDoc =
+          lastPageParam === 0
+            ? baseDoc
+            : parseHtml(await fetchText(buildPageUrl(postId, lastPageParam)));
+        const lastPageComments =
+          LSForumParser.extractForumCommentsFromDocument(lastPageDoc, {
+            postId,
+            topicTitle: meta.title,
+            category: meta.category,
+            categoryPath: meta.categoryPath,
+            page: lastPageParam + 1,
+          });
+        const lastId = lastPageComments.length
+          ? String(lastPageComments[lastPageComments.length - 1].commentId)
+          : '';
+
+        if (lastId === String(existing.lastCommentId || '')) {
+          reportProgress(
+            totalPages,
+            totalPages,
+            messageCount,
+            totalPages,
+          );
+          return {
+            jobId: job.jobId,
+            postId,
+            mode: job.mode,
+            cancelled: false,
+            errors,
+            noChanges: true,
+            messageCount,
+            lastPageParam,
+            lastCompletePageParam: Number(existing.lastCompletePageParam) || 0,
+            complete: true,
+          };
+        }
+
+        preloadedLastPage = {
+          pageParam: lastPageParam,
+          pageDoc: lastPageDoc,
+          comments: lastPageComments,
+        };
+      } catch (e) {
+        errors.push(
+          `Тема ${postId}, страница ${lastPageParam + 1}: ${e.message}`,
+        );
+      }
+    }
 
     reportProgress(done, totalPages - startPageParam, messageCount, startPageParam + 1);
 
     const postRecord = makePostRecord(meta);
-    if (postRecord) {
+    if (postRecord && !existing) {
       await LSForumStorage.putComments([postRecord], generation);
     }
 
@@ -181,36 +242,67 @@
         break;
       }
 
-      let pageDoc;
-      if (pageParam === 0) {
-        pageDoc = baseDoc;
+      let comments;
+      if (
+        preloadedLastPage &&
+        preloadedLastPage.pageParam === pageParam
+      ) {
+        comments = preloadedLastPage.comments;
       } else {
-        try {
-          const html = await fetchText(buildPageUrl(postId, pageParam));
-          pageDoc = parseHtml(html);
-        } catch (e) {
-          errors.push(`Тема ${postId}, страница ${pageParam + 1}: ${e.message}`);
-          break;
+        let pageDoc;
+        if (pageParam === 0) {
+          pageDoc = baseDoc;
+        } else {
+          try {
+            const html = await fetchText(buildPageUrl(postId, pageParam));
+            pageDoc = parseHtml(html);
+          } catch (e) {
+            errors.push(
+              `Тема ${postId}, страница ${pageParam + 1}: ${e.message}`,
+            );
+            break;
+          }
+        }
+
+        comments = LSForumParser.extractForumCommentsFromDocument(pageDoc, {
+          postId,
+          topicTitle: meta.title,
+          category: meta.category,
+          categoryPath: meta.categoryPath,
+          page: pageParam + 1,
+        });
+      }
+
+      let commentsToWrite = comments;
+      if (
+        pageParam === startPageParam &&
+        existing &&
+        existing.lastCommentId
+      ) {
+        const previousLastIndex = comments.findIndex(
+          (comment) =>
+            String(comment.commentId) === String(existing.lastCommentId),
+        );
+        if (previousLastIndex >= 0) {
+          commentsToWrite = comments.slice(previousLastIndex + 1);
         }
       }
 
-      const comments = LSForumParser.extractForumCommentsFromDocument(pageDoc, {
-        postId,
-        topicTitle: meta.title,
-        category: meta.category,
-        categoryPath: meta.categoryPath,
-        page: pageParam + 1,
-      });
-
-      if (comments.length > 0) {
+      if (commentsToWrite.length > 0) {
         try {
-          await LSForumStorage.putComments(comments, generation);
-          messageCount += comments.length;
+          await LSForumStorage.putComments(commentsToWrite, generation);
+          messageCount += commentsToWrite.length;
         } catch (e) {
           if (String(e.message || '').includes('очищен')) throw e;
           errors.push(`Тема ${postId}, страница ${pageParam + 1}: ${e.message}`);
           break;
         }
+      }
+
+      if (comments.length > 0) {
+        lastCommentId = String(
+          comments[comments.length - 1].commentId || '',
+        );
       }
 
       lastCompletePageParam = pageParam;
@@ -239,6 +331,7 @@
           pageCount: totalPages,
           lastPageParam,
           lastCompletePageParam,
+          lastCommentId,
           indexedComments,
           complete: false,
           partial: true,
@@ -257,6 +350,7 @@
         messageCount: indexedComments,
         lastPageParam,
         lastCompletePageParam,
+        lastCommentId,
         complete: false,
       };
     }
@@ -279,6 +373,7 @@
         pageCount: totalPages,
         lastPageParam,
         lastCompletePageParam,
+        lastCommentId,
         indexedComments,
         complete,
         partial: !complete,
@@ -301,6 +396,7 @@
       messageCount: indexedComments,
       lastPageParam,
       lastCompletePageParam,
+      lastCommentId,
       complete,
     };
   }
