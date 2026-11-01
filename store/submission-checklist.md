@@ -2,11 +2,12 @@
 
 ## 0. Что уже готово
 
-- Версия: **1.2.1 на review**; следующая — 1.3.0.
-- ZIP 1.3.0: `laststicker-search-1.3.0.zip` в GitHub Release (после тега).
+- Версия: **1.2.1 на review**; следующая — 1.3.1.
+- 1.3.1 включает изменения 1.3.0, отдельно 1.3.0 загружать не нужно.
+- ZIP 1.3.1: `laststicker-search-1.3.1.zip` в GitHub Release (после тега).
 - Тексты карточки: `store/listing-ru.md`.
 - Политика конфиденциальности: `PRIVACY.md`.
-- Не загружать 1.3.0, пока 1.2.1 на review.
+- Не загружать новые версии, пока 1.2.1 на review.
 
 ## 1. Подготовить публичный URL политики
 
@@ -41,9 +42,9 @@ Chrome Web Store требует публичный URL, который откр�
 
 ## 3. Скачать ZIP
 
-Скачать `laststicker-search-1.3.0.zip` из GitHub Release:
+Скачать `laststicker-search-1.3.1.zip` из GitHub Release:
 
-https://github.com/lavandiI/laststicker-search/releases/download/v1.3.0/laststicker-search-1.3.0.zip
+https://github.com/lavandiI/laststicker-search/releases/download/v1.3.1/laststicker-search-1.3.1.zip
 
 Проверить, что внутри есть `manifest.json` в корне, а не вложенная папка.
 

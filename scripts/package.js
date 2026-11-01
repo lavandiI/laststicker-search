@@ -21,6 +21,7 @@ if (manifest.version !== pkg.version) {
 const files = [
   'manifest.json',
   'background.js',
+  'fetch-retry.js',
   'content.js',
   'inline-panel.js',
   'inline-storage.js',

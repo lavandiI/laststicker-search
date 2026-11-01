@@ -2,7 +2,18 @@
  * Unit tests for parseImagesFromHtml function
  */
 
-const { parseImagesFromHtml } = require('../inline-panel');
+const fs = require('fs');
+const path = require('path');
+const {
+  parseImagesFromHtml,
+  parseUserMessageFromElement,
+  extractMessagesFromTalkDocument,
+} = require('../inline-panel');
+
+const talkFixture = fs.readFileSync(
+  path.join(__dirname, 'fixtures', 'talk-page.html'),
+  'utf8',
+);
 
 describe('parseImagesFromHtml', () => {
   test('should return empty array when no images', () => {
@@ -61,6 +72,31 @@ describe('parseImagesFromHtml', () => {
     expect(result).toHaveLength(1);
     expect(result[0].src).toBe('/uploads/sticker.png');
     expect(result[0].description).toBe('/uploads/sticker.png');
+  });
+
+  test('parses a talk fixture with ids, partner and image text', () => {
+    const doc = new DOMParser().parseFromString(talkFixture, 'text/html');
+    const messages = extractMessagesFromTalkDocument(
+      doc,
+      'Анна',
+      '41292',
+      'https://www.laststicker.ru/users/my_talks/41292/',
+    );
+
+    expect(messages).toHaveLength(6);
+    expect(messages[0].messageId).toBe('101');
+    expect(messages[0].partner).toBe('Анна');
+    expect(messages[0].talkId).toBe('41292');
+    expect(messages[2].text).toContain('[Image: /uploads/sticker.png]');
+    expect(messages[5].text).toBe('<img src=x onerror=alert(1)>');
+  });
+
+  test('keeps the default partner for a self message', () => {
+    const doc = new DOMParser().parseFromString(talkFixture, 'text/html');
+    const message = parseUserMessageFromElement(doc.getElementById('msg_102'), 'Анна');
+
+    expect(message.partner).toBe('Анна');
+    expect(message.messageId).toBe('102');
   });
 
   test('should handle base64 with different formats', () => {

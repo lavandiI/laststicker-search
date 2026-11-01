@@ -1,6 +1,8 @@
 // LastSticker Search - Content Script
 // Extracts messages from laststicker.ru pages
 
+const isCommonJS = typeof module !== 'undefined' && module.exports;
+
 console.log('[LS Search] Content script starting...');
 
 // Parallel fetch helper - processes URLs in batches
@@ -139,10 +141,12 @@ function waitForInlinePanel(attempt, maxAttempts, resolve, reject) {
 }
 
 // Initialize inline panel when DOM is ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initInlinePanel);
-} else {
-  initInlinePanel();
+if (!isCommonJS) {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initInlinePanel);
+  } else {
+    initInlinePanel();
+  }
 }
 
 // Helper function to detect if we're on hidden talks
@@ -753,23 +757,35 @@ if (document.readyState === 'loading') {
 }
 
 // Listen for messages from popup
-chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
-  if (request.action === 'extractMessages') {
-    extractAllMessages()
-      .then(function(messages) {
-        sendResponse({ messages: messages });
-      })
-      .catch(function(error) {
-        console.error('extractAllMessages error:', error);
-        sendResponse({ messages: [] });
-      });
-    return true;
-  }
+if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+  chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
+    if (request.action === 'extractMessages') {
+      extractAllMessages()
+        .then(function(messages) {
+          sendResponse({ messages: messages });
+        })
+        .catch(function(error) {
+          console.error('extractAllMessages error:', error);
+          sendResponse({ messages: [] });
+        });
+      return true;
+    }
 
-  return false;
-});
+    return false;
+  });
+}
 
 // Expose functions globally for inline-panel
 window.extractAllMessages = extractAllMessages;
 window.extractAllFromTalksList = extractAllFromTalksList;
 window.extractFromSingleTalk = extractFromSingleTalk;
+
+if (isCommonJS) {
+  module.exports = {
+    parseUserMessage,
+    parseDate,
+    extractMessagesFromTalkDocument,
+    buildTalkMessageKey,
+    dedupeTalkMessages,
+  };
+}

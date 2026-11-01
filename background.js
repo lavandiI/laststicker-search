@@ -1,6 +1,8 @@
 // Background script for LastSticker Search
 // Handles message passing and script injection
 
+importScripts('fetch-retry.js');
+
 console.log('[LS Search] Background script loaded');
 
 const ICONS_ENABLED = {
@@ -376,14 +378,20 @@ async function indexAllSectionsAsync(request, sender, sendResponse) {
 }
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = 30000) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } finally {
-    clearTimeout(timer);
-  }
+  return globalThis.LSFetch.fetchWithRetry(url, options, {
+    timeoutMs,
+    retries: 2,
+    shouldCancel: () => indexCancelRequested,
+    onRetry: ({ attempt, status, error, delay }) => {
+      console.log('[LS] Retry', {
+        url,
+        attempt,
+        status: status || null,
+        error: error ? error.message : null,
+        delay,
+      });
+    },
+  });
 }
 
 async function loadStoredTalkCounts() {
@@ -739,8 +747,6 @@ async function parseTalkHtmlWithPagination(html, talkUrl, tabId) {
         if (titleLink) {
           partner = titleLink.textContent.trim();
         }
-        console.log('[LS] Partner:', partner);
-        
         const match = url.match(/\/users\/my_talks\/(\d+)\//);
         const talkId = match ? match[1] : '';
         
@@ -793,6 +799,16 @@ async function parseTalkHtmlWithPagination(html, talkUrl, tabId) {
                 signal: controller.signal,
               });
               if (!response.ok) {
+                const retryable = response.status === 429 || response.status === 503;
+                if (retryable && attempt < retries) {
+                  const retryAfter = response.headers.get('Retry-After');
+                  const seconds = Number(retryAfter);
+                  const waitMs = Number.isFinite(seconds)
+                    ? Math.max(0, seconds * 1000)
+                    : 500 * (attempt + 1);
+                  await new Promise((resolve) => setTimeout(resolve, waitMs));
+                  continue;
+                }
                 throw new Error('HTTP ' + response.status);
               }
               return await response.text();

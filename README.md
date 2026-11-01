@@ -56,7 +56,7 @@
 
 ### Вручную из ZIP
 
-1. Скачайте `laststicker-search-1.3.0.zip` со [страницы последнего релиза](https://github.com/lavandiI/laststicker-search/releases/latest).
+1. Скачайте `laststicker-search-1.3.1.zip` со [страницы последнего релиза](https://github.com/lavandiI/laststicker-search/releases/latest).
 2. Распакуйте архив в отдельную папку.
 3. Откройте `chrome://extensions/` и включите **режим разработчика**.
 4. Нажмите **«Загрузить распакованное расширение»** и выберите папку, где лежит `manifest.json`.
@@ -66,7 +66,7 @@
 ```bash
 git clone https://github.com/lavandiI/laststicker-search.git
 cd laststicker-search
-git checkout v1.3.0
+git checkout v1.3.1
 ```
 
 Далее загрузите папку через `chrome://extensions/` → «Загрузить распакованное расширение».
@@ -99,10 +99,12 @@ git checkout v1.3.0
 ```bash
 npm install      # установка зависимостей
 npm run lint     # ESLint, без предупреждений
-npm test         # Jest, 43 теста
+npm test         # Jest, 58 тестов
 npm run package  # ZIP для Chrome Web Store в dist/
 npm run format   # Prettier
 ```
+
+Релиз: пуш тега `vX.Y.Z` запускает GitHub Actions, проверяет версии, собирает ZIP и прикладывает его к Release.
 
 Структура проекта:
 
@@ -114,8 +116,10 @@ inline-panel.js         # встроенная панель: поиск и на�
 inline-ui.js            # отрисовка панели
 inline-storage.js       # chrome.storage.local и миграция
 inline-styles.css       # стили панели
+fetch-retry.js          # таймауты и повторы сетевых запросов
 icons/                  # иконки 16–128 px
-tests/                  # unit-тесты Jest
+scripts/                # сборка ZIP для Chrome Web Store
+tests/                  # unit-тесты Jest и HTML-фикстуры
 docs/                   # сайт и политика для GitHub Pages
 store/                  # материалы для Chrome Web Store
 ```

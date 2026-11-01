@@ -180,7 +180,6 @@
       console.log('[LS Search] Single talk page detected, initializing talk panel');
       currentTalkId = getTalkIdFromPath(path);
       currentPartnerName = getPartnerNameFromPage();
-      console.log('[LS Search] Current talkId:', currentTalkId, 'Partner:', currentPartnerName);
       initTalkPage();
       return;
     }
@@ -269,7 +268,6 @@
   
   // Initialize talk panel with event handlers
   async function initTalkPanel(elements) {
-    console.log('[LS Search] initTalkPanel called with elements:', elements);
     const { searchInput, results, talkId, partnerName } = elements;
     
     let messages = await window.InlineStorage.loadMessages();
@@ -1521,6 +1519,9 @@
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
       parseImagesFromHtml,
+      parseUserMessageFromElement,
+      parseDate,
+      extractMessagesFromTalkDocument,
       getTalkBasePath,
       buildTalkMessageKey,
       dedupeTalkMessages,

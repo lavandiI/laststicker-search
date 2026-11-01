@@ -17,6 +17,7 @@ module.exports = [
         ...globals.webextensions,
         ...globals.node,
         ...globals.jest,
+        importScripts: 'readonly',
       },
     },
     rules: {
