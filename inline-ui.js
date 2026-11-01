@@ -860,7 +860,7 @@ function createForumSearchPanel(options = {}) {
   clearBtn.type = 'button';
   clearBtn.id = 'ls-forumClearBtn';
   clearBtn.className = 'ls-btn ls-btn-danger';
-  clearBtn.textContent = 'Очистить форум';
+  clearBtn.textContent = 'Очистить';
   clearBtn.title = 'Удалить индекс форума; личные диалоги останутся';
 
   const stats = document.createElement('div');

@@ -32,7 +32,9 @@ describe('forum inline UI', () => {
     expect(document.getElementById('ls-forum-panel')).toBeTruthy();
     expect(document.getElementById('ls-forumIndexBtn')).toBeTruthy();
     expect(document.getElementById('ls-forumReindexBtn')).toBeTruthy();
-    expect(document.getElementById('ls-forumClearBtn')).toBeTruthy();
+    expect(document.getElementById('ls-forumClearBtn').textContent).toBe(
+      'Очистить',
+    );
     expect(document.getElementById('ls-forumScopeCurrent')).toBeNull();
     expect(document.getElementById('ls-forumSearchInput').getAttribute('aria-label')).toBe(
       'Поиск по сообщениям форума',

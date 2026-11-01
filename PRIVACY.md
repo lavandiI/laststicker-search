@@ -51,7 +51,7 @@ Effective date / Дата вступления в силу: 2026-11-01
 
 ### Удаление данных
 
-Кнопка «Очистить» удаляет индекс диалогов, кнопка «Очистить форум» — индекс форума. Удаление расширения также удаляет оба локальных индекса.
+Кнопка «Очистить» в панели диалогов удаляет индекс диалогов, кнопка «Очистить» на странице форума — индекс форума. Удаление расширения также удаляет оба локальных индекса.
 
 ### Дети
 
@@ -114,7 +114,7 @@ The extension does not request access to browsing history and does not read tabs
 
 ### Data deletion
 
-The "Clear" button deletes the dialog index; "Clear forum" deletes the forum index. Uninstalling the extension also deletes both local indexes.
+The "Clear" button in the dialog panel deletes the dialog index; the "Clear" button on the forum page deletes the forum index. Uninstalling the extension also deletes both local indexes.
 
 ### Children
 
