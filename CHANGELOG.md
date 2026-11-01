@@ -60,7 +60,7 @@
 - `forum-parser.js`, `forum-storage.js`, `forum-indexer.js`
 - Storage-RPC `forumStats`, `forumSearch`, `forumClear`, `forumDeleteTopic`
 - Generation-защита от записи после очистки форума
-- 90 тестов Jest, включая парсер, IndexedDB и панель форума
+- 91 тест Jest, включая парсер, IndexedDB и панель форума
 
 ### [1.4.0] - 2026-11-01
 

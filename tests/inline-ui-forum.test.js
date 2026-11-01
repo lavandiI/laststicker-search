@@ -116,4 +116,25 @@ describe('forum inline UI', () => {
     window.InlineUI.renderForumEmptyState('no-query');
     expect(document.getElementById('ls-forumResults').textContent).toContain('Введите запрос');
   });
+
+  test('inserts the topic panel under the last line and above comments', () => {
+    document.body.innerHTML = `
+      <div id="content">
+        <div class="head_bg-l clearer"><div class="head_inner"><h1>Тема</h1></div></div>
+        <div class="line"></div>
+        <div class="album_item">Описание темы</div>
+        <div class="line"></div>
+        <h2 id="comments_list">Комментарии:</h2>
+      </div>
+    `;
+
+    window.InlineUI.createForumSearchPanel({
+      postId: '54672',
+      isTopicPage: true,
+    });
+
+    const panel = document.getElementById('ls-forum-panel');
+    expect(panel.previousElementSibling.classList.contains('line')).toBe(true);
+    expect(panel.nextElementSibling.id).toBe('comments_list');
+  });
 });

@@ -789,9 +789,17 @@ function createForumSearchPanel(options = {}) {
   let parent = content;
   let before = content ? content.firstChild : null;
 
-  if (options.isTopicPage && topicHeader) {
-    parent = topicHeader.parentNode;
-    before = topicHeader.nextSibling;
+  if (options.isTopicPage) {
+    // On a topic page insert the panel after the last dashed separator and
+    // directly above the "Комментарии" heading.
+    const commentsHeading = document.getElementById('comments_list');
+    if (commentsHeading) {
+      parent = commentsHeading.parentNode;
+      before = commentsHeading;
+    } else if (topicHeader) {
+      parent = topicHeader.parentNode;
+      before = topicHeader.nextSibling;
+    }
   } else {
     // On the forum index and category pages insert the panel after the last
     // dashed separator and directly above the "Обсуждаемые темы" heading.
