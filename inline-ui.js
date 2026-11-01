@@ -768,7 +768,6 @@ function createForumSearchPanel(options = {}) {
     return {
       panel: existing,
       indexBtn: document.getElementById('ls-forumIndexBtn'),
-      reindexBtn: document.getElementById('ls-forumReindexBtn'),
       cancelBtn: document.getElementById('ls-forumCancelBtn'),
       clearBtn: document.getElementById('ls-forumClearBtn'),
       searchInput: document.getElementById('ls-forumSearchInput'),
@@ -840,14 +839,6 @@ function createForumSearchPanel(options = {}) {
   indexBtn.title = 'Собрать комментарии этой темы в локальный индекс';
   indexBtn.hidden = !options.isTopicPage;
 
-  const reindexBtn = document.createElement('button');
-  reindexBtn.type = 'button';
-  reindexBtn.id = 'ls-forumReindexBtn';
-  reindexBtn.className = 'ls-btn ls-btn-secondary';
-  reindexBtn.textContent = 'Переиндексировать';
-  reindexBtn.title = 'Удалить индекс этой темы и собрать её заново';
-  reindexBtn.hidden = true;
-
   const cancelBtn = document.createElement('button');
   cancelBtn.type = 'button';
   cancelBtn.id = 'ls-forumCancelBtn';
@@ -883,7 +874,6 @@ function createForumSearchPanel(options = {}) {
   `;
 
   controls.appendChild(indexBtn);
-  controls.appendChild(reindexBtn);
   controls.appendChild(cancelBtn);
   controls.appendChild(clearBtn);
   controls.appendChild(stats);
@@ -943,7 +933,6 @@ function createForumSearchPanel(options = {}) {
   return {
     panel,
     indexBtn,
-    reindexBtn,
     cancelBtn,
     clearBtn,
     searchInput,
@@ -965,7 +954,6 @@ function renderForumStats(stats) {
   const sizeEl = document.getElementById('ls-forumIndexSize');
   const topicStats = document.getElementById('ls-forumTopicStats');
   const indexBtn = document.getElementById('ls-forumIndexBtn');
-  const reindexBtn = document.getElementById('ls-forumReindexBtn');
 
   if (topicCount) topicCount.textContent = String(safe.topicsCount || 0);
   if (messageCount) {
@@ -1004,8 +992,6 @@ function renderForumStats(stats) {
       indexBtn.textContent = 'Продолжить';
     }
   }
-
-  if (reindexBtn) reindexBtn.hidden = !safe.topic;
 }
 
 /**

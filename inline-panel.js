@@ -491,11 +491,9 @@
   function setForumIndexingState(running) {
     forumIndexing = running;
     const indexBtn = document.getElementById('ls-forumIndexBtn');
-    const reindexBtn = document.getElementById('ls-forumReindexBtn');
     const cancelBtn = document.getElementById('ls-forumCancelBtn');
 
     if (indexBtn) indexBtn.disabled = running;
-    if (reindexBtn) reindexBtn.disabled = running;
     if (cancelBtn) cancelBtn.hidden = !running;
   }
 
@@ -571,8 +569,7 @@
     forumPanelInitialized = true;
     window._lsForumPanelInitialized = true;
 
-    const { indexBtn, reindexBtn, cancelBtn, clearBtn, searchInput, results } =
-      elements;
+    const { indexBtn, cancelBtn, clearBtn, searchInput, results } = elements;
 
     attachForumProgressListener();
 
@@ -584,11 +581,6 @@
     if (indexBtn && !indexBtn._forumClickListener) {
       indexBtn._forumClickListener = true;
       indexBtn.addEventListener('click', onForumIndexClick);
-    }
-
-    if (reindexBtn && !reindexBtn._forumClickListener) {
-      reindexBtn._forumClickListener = true;
-      reindexBtn.addEventListener('click', onForumReindexClick);
     }
 
     if (cancelBtn && !cancelBtn._forumClickListener) {
@@ -739,21 +731,6 @@
 
     if (!(await confirmLargeForumTopic())) return;
     await startForumIndex(stats.topic ? 'update' : 'topic');
-  }
-
-  async function onForumReindexClick(event) {
-    if (event) {
-      event.preventDefault();
-      event.stopPropagation();
-    }
-    if (!currentForumPostId || forumIndexing) return;
-
-    const confirmed = window.confirm(
-      'Удалить индекс этой темы и собрать её заново?',
-    );
-    if (!confirmed) return;
-    if (!(await confirmLargeForumTopic())) return;
-    await startForumIndex('reindex');
   }
 
   async function onForumCancelClick(event) {

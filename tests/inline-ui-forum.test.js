@@ -29,7 +29,7 @@ describe('forum inline UI', () => {
   test('creates a separate forum panel with controls', () => {
     expect(document.getElementById('ls-forum-panel')).toBeTruthy();
     expect(document.getElementById('ls-forumIndexBtn')).toBeTruthy();
-    expect(document.getElementById('ls-forumReindexBtn')).toBeTruthy();
+    expect(document.getElementById('ls-forumReindexBtn')).toBeNull();
     expect(document.getElementById('ls-forumClearBtn').textContent).toBe('Очистить');
     expect(document.getElementById('ls-forumClearBtn').title).toContain('индекс форума');
     expect(document.getElementById('ls-forumScopeCurrent')).toBeNull();
@@ -63,7 +63,6 @@ describe('forum inline UI', () => {
     expect(document.getElementById('ls-forumTopicStats').hidden).toBe(false);
     expect(document.getElementById('ls-forumTopicStats').textContent).toContain('24');
     expect(document.getElementById('ls-forumIndexBtn').textContent).toBe('Обновить');
-    expect(document.getElementById('ls-forumReindexBtn').hidden).toBe(false);
   });
 
   test('renders global results grouped by topic with direct links', () => {
