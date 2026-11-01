@@ -1119,9 +1119,8 @@ function renderForumResultItem(result, index, query) {
       ? ` · стр. ${Number(result.page)}`
       : '';
   const kind = result.kind === 'post' ? ' · первое сообщение' : '';
-  const meta = [result.author || 'Неизвестно', date]
-    .filter(Boolean)
-    .join(' · ');
+  const author = highlightText(result.author || 'Неизвестно', query);
+  const meta = `${author} · ${escapeHtml(date)}`;
   const href = result.url
     ? ` href="${escapeAttribute(result.url)}"`
     : '';
@@ -1130,7 +1129,7 @@ function renderForumResultItem(result, index, query) {
   return `
     <${tag} class="ls-result-item" id="ls-forum-result-${index}" data-result-index="${index}" aria-selected="false"${href}>
       <div class="ls-result-message">${text}</div>
-      <div class="ls-result-meta">${escapeHtml(meta)}${page}${kind}</div>
+      <div class="ls-result-meta">${meta}${escapeHtml(page)}${escapeHtml(kind)}</div>
     </${tag}>
   `;
 }
@@ -1190,8 +1189,9 @@ function renderForumResults(results, query, totalCount, limit, options = {}) {
       parts.push(`
         <div class="ls-forum-topic-group">
           <div class="ls-forum-topic-header">
-            <${headerTag} class="ls-forum-topic-link"${headerHref}>${escapeHtml(
+            <${headerTag} class="ls-forum-topic-link"${headerHref}>${highlightText(
               group.title,
+              query,
             )}</${headerTag}>
             <span class="ls-partner-count">(${group.items.length})</span>
           </div>

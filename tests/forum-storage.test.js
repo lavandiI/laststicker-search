@@ -56,6 +56,13 @@ describe('forum storage', () => {
           timestamp: 300,
           text: 'Посторонняя тема',
         }),
+        comment({
+          key: 'forum:1:4',
+          commentId: '4',
+          topicTitle: 'УникальныйЗаголовок',
+          timestamp: 400,
+          text: 'обычный текст',
+        }),
       ],
       0,
     );
@@ -74,6 +81,9 @@ describe('forum storage', () => {
     });
     expect(limited.results).toHaveLength(1);
     expect(limited.hasMore).toBe(true);
+
+    const titleOnly = await storage.searchComments('УникальныйЗаголовок');
+    expect(titleOnly.total).toBe(0);
   });
 
   test('returns statistics and topic metadata', async () => {

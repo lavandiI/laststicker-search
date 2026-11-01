@@ -416,7 +416,9 @@
 
   function matchesQuery(comment, queryLower) {
     if (!queryLower) return false;
-    const haystack = [comment.text || '', comment.author || '', comment.topicTitle || '']
+    // Only message text and author. The topic title is constant inside a
+    // topic and would make every comment match a title-only query.
+    const haystack = [comment.text || '', comment.author || '']
       .join(' ')
       .toLowerCase();
     return haystack.includes(queryLower);

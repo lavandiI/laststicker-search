@@ -107,6 +107,62 @@ describe('forum inline UI', () => {
     expect(results.textContent).toContain('стр. 2');
   });
 
+  test('highlights an author match when the message text has no match', () => {
+    window.InlineUI.renderForumResults(
+      [
+        {
+          key: 'forum:1:2',
+          kind: 'comment',
+          postId: '1',
+          commentId: '2',
+          topicTitle: 'Тема',
+          author: 'Пресс',
+          timestamp: 1,
+          text: 'Текст без совпадения',
+          page: 1,
+          url: 'https://www.laststicker.ru/blog/post1/#c2',
+        },
+      ],
+      'пре',
+      1,
+      200,
+    );
+
+    expect(
+      document.querySelector('#ls-forumResults .ls-result-message .ls-highlight'),
+    ).toBeNull();
+    expect(
+      document.querySelector('#ls-forumResults .ls-result-meta .ls-highlight')
+        .textContent,
+    ).toBe('Пре');
+  });
+
+  test('highlights short prefixes in message text', () => {
+    window.InlineUI.renderForumResults(
+      [
+        {
+          key: 'forum:1:1',
+          kind: 'comment',
+          postId: '1',
+          commentId: '1',
+          topicTitle: 'Тема',
+          author: 'Автор',
+          timestamp: 1,
+          text: 'Предложение о обмене',
+          page: 1,
+          url: 'https://www.laststicker.ru/blog/post1/#c1',
+        },
+      ],
+      'пре',
+      1,
+      200,
+    );
+
+    expect(
+      document.querySelector('#ls-forumResults .ls-highlight').textContent,
+    ).toBe('Пре');
+  });
+
   test('renders empty forum states', () => {
     window.InlineUI.renderForumEmptyState('no-topic-index');
     expect(document.getElementById('ls-forumResults').textContent).toContain('не проиндексирована');
