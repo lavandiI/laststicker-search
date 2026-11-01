@@ -67,6 +67,7 @@ https://github.com/lavandiI/laststicker-search/releases/download/v1.4.0/laststic
    - data usage: Personal communications, Website content, Personally identifiable information — локальное хранение;
    - remote code: No;
    - privacy policy URL.
+   - из-за `offscreen` и `alarms` review может идти дольше; в обоснованиях указано, что это локальный парсинг и периодическое автообновление.
 7. Выбрать видимость:
    - **Unlisted** — доступ только по ссылке, автообновления работают;
    - **Public** — доступен всем.
