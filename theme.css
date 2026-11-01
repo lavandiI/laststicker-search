@@ -645,7 +645,9 @@ html[data-ls-theme='dark'][data-ls-scope='site'] img.forum_ico {
 /* ---------------------------------------------------------------- marks and colour codes */
 
 html[data-ls-theme='dark'][data-ls-scope='site'] div.mark_gold {
-  background: #2a2a18;
+  /* Gold reviews use an inline background colour plus a seal image. Keep the
+     image and override only the light-green background. */
+  background-color: #2a2a18 !important;
 }
 
 html[data-ls-theme='dark'][data-ls-scope='site'] div.mark_good {
