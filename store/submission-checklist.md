@@ -39,10 +39,10 @@ npm run package
 Пять файлов 1280×800, 24-бит PNG без альфа-канала:
 
 1. `store/screenshot-dialogs-1.5.0.png` — поиск по всем диалогам.
-2. `store/screenshot-dialog-single-1.5.0.png` — панель отдельного диалога.
-3. `store/screenshot-forum-1.5.0.png` — глобальный поиск по темам форума.
-4. `store/screenshot-topic-1.5.0.png` — панель темы с поиском только по ней.
-5. `store/screenshot-forum-indexing-1.5.0.png` — прогресс индексации темы.
+2. `store/screenshot-forum-1.5.0.png` — глобальный поиск по темам форума.
+3. `store/screenshot-topic-1.5.0.png` — панель темы с поиском только по ней.
+4. `store/screenshot-forum-indexing-1.5.0.png` — прогресс индексации темы.
+5. `store/screenshot-highlight-1.5.0.png` — жёлтая подсветка результата и комментария.
 
 В Dashboard удалить старые скриншоты 1.4.0 и загрузить эти пять. В кадре нет реальных имён и сообщений — данные демонстрационные.
 
