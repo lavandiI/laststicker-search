@@ -43,6 +43,10 @@
       <li>названия тем, категории и метки форума;</li>
       <li>последний поисковый запрос и время индексации.</li>
     </ul>
+    <p>
+      Комментарии форума — публичный контент сайта. Расширение сохраняет их локально
+      только для поиска и не публикует новые данные.
+    </p>
 
     <h3>Где хранятся данные</h3>
     <p>
@@ -58,6 +62,7 @@
     <p>
       Только для отображения статистики, поиска по сообщениям и перехода к найденному
       сообщению. Данные не продаются, не передаются и не используются для рекламы.
+      Расширение не использует аналитику, рекламу и собственные серверы.
     </p>
 
     <h3>Автообновление</h3>
@@ -80,7 +85,7 @@
 
     <h3>Разрешения</h3>
     <ul>
-      <li><code>storage</code> — локальное хранение индекса;</li>
+      <li><code>storage</code> — локальное хранение: диалоги в <code>chrome.storage.local</code>, форум в IndexedDB;</li>
       <li><code>scripting</code> — внедрение панели поиска и парсера на страницы сайта;</li>
       <li><code>offscreen</code> — локальный парсинг HTML без открытой вкладки;</li>
       <li><code>alarms</code> — периодическая проверка автообновления;</li>
@@ -130,6 +135,10 @@
       <li>topic titles, categories, and forum tags;</li>
       <li>the last search query and the last indexing time.</li>
     </ul>
+    <p>
+      Forum comments are public site content. The extension stores them locally only
+      for search and does not publish new data.
+    </p>
 
     <h3>Where data is stored</h3>
     <p>
@@ -144,7 +153,8 @@
     <h3>How data is used</h3>
     <p>
       Only to show statistics, search messages, and navigate to a found message.
-      Data is not sold, shared, or used for advertising.
+      Data is not sold, shared, or used for advertising. The extension does not use
+      analytics, advertising, or its own servers.
     </p>
 
     <h3>Automatic refresh</h3>
@@ -167,7 +177,7 @@
 
     <h3>Permissions</h3>
     <ul>
-      <li><code>storage</code> — local storage of the index;</li>
+      <li><code>storage</code> — local storage: dialogs in <code>chrome.storage.local</code>, forum in IndexedDB;</li>
       <li><code>scripting</code> — inject the search panel and parser into site pages;</li>
       <li><code>offscreen</code> — local HTML parsing without an open tab;</li>
       <li><code>alarms</code> — periodic automatic refresh;</li>

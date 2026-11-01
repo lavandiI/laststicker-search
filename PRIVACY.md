@@ -16,6 +16,8 @@ Effective date / Дата вступления в силу: 2026-11-01
 - названия тем, категории и метки форума;
 - последний поисковый запрос и время индексации.
 
+Комментарии форума — публичный контент сайта. Расширение сохраняет их локально только для поиска и не публикует новые данные.
+
 ### Где хранятся данные
 
 Данные сохраняются только локально в браузере пользователя:
@@ -27,7 +29,7 @@ Effective date / Дата вступления в силу: 2026-11-01
 
 ### Как используются данные
 
-Только для отображения статистики, поиска по сообщениям и перехода к найденному сообщению. Данные не продаются, не передаются и не используются для рекламы.
+Только для отображения статистики, поиска по сообщениям и перехода к найденному сообщению. Данные не продаются, не передаются и не используются для рекламы. Расширение не использует аналитику, рекламу и собственные серверы.
 
 ### Автообновление
 
@@ -41,7 +43,7 @@ Effective date / Дата вступления в силу: 2026-11-01
 
 ### Разрешения
 
-- `storage` — локальное хранение индекса;
+- `storage` — локальное хранение: диалоги в `chrome.storage.local`, форум в IndexedDB;
 - `scripting` — внедрение панели поиска и парсера на страницы `laststicker.ru`;
 - `offscreen` — локальный парсинг HTML без открытой вкладки;
 - `alarms` — периодическая проверка автообновления;
@@ -79,6 +81,8 @@ Effective date / Дата вступления в силу: 2026-11-01
 - topic titles, categories, and forum tags;
 - the last search query and the last indexing time.
 
+Forum comments are public site content. The extension stores them locally only for search and does not publish new data.
+
 ### Where data is stored
 
 Data is stored only locally in the user's browser:
@@ -90,7 +94,7 @@ When upgrading from an older version, dialog data may be migrated from the site'
 
 ### How data is used
 
-Only to show statistics, search messages, and navigate to a found message. Data is not sold, shared, or used for advertising.
+Only to show statistics, search messages, and navigate to a found message. Data is not sold, shared, or used for advertising. The extension does not use analytics, advertising, or its own servers.
 
 ### Automatic refresh
 
@@ -104,7 +108,7 @@ The extension works only on `laststicker.ru` and `www.laststicker.ru`. It reads 
 
 ### Permissions
 
-- `storage` - local storage of the index;
+- `storage` - local storage: dialogs in `chrome.storage.local`, forum in IndexedDB;
 - `scripting` - inject the search panel and parser into `laststicker.ru` pages;
 - `offscreen` - local HTML parsing without an open tab;
 - `alarms` - periodic automatic refresh;

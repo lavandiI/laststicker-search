@@ -69,6 +69,7 @@ npm run package
    - single purpose: диалоги и форум laststicker.ru;
    - обоснования `storage`, `scripting`, `offscreen`, `alarms`, host permissions;
    - data usage: Personal communications, Website content, Personally identifiable information — только локальное хранение;
+   - комментарии форума — публичный контент сайта, сохраняются только локально;
    - remote code: No;
    - privacy policy URL.
 8. Проверить видимость: сейчас расширение **Public — опубликовано для всех**.
