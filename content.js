@@ -1,7 +1,7 @@
 // LastSticker Search - Content Script
 // Extracts messages from laststicker.ru pages
 
-const isCommonJS = typeof module !== 'undefined' && module.exports;
+var isCommonJS = typeof module !== 'undefined' && module.exports;
 
 console.log('[LS Search] Content script starting...');
 
