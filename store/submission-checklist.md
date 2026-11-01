@@ -56,20 +56,21 @@ npm run package
 3. Открыть **Package → Upload new package** и загрузить `laststicker-search-1.5.0.zip`.
 4. Проверить карточку:
    - название: `LastSticker Search`;
-   - краткое описание из `store/listing-ru.md`;
-   - подробное описание с форумом;
+   - отдельного поля краткого описания нет — оно берётся из `manifest.json` → `description`;
+   - подробное описание вставить из `store/description-1.5.0.txt` (plain text с `•`, без Markdown);
    - категория: Tools (группа Productivity);
    - язык: Русский;
    - иконка 128×128 уже внутри ZIP.
 5. Загрузить три скриншота 1.5.0, `store/promo-440x280.png` в **Small promo tile** и `store/marquee-1400x560.jpg` в **Marquee promo tile**.
-6. Проверить **Privacy practices**:
+6. В **What's new** вставить `store/whats-new-1.5.0.txt`.
+7. Проверить **Privacy practices**:
    - single purpose: диалоги и форум laststicker.ru;
    - обоснования `storage`, `scripting`, `offscreen`, `alarms`, host permissions;
    - data usage: Personal communications, Website content, Personally identifiable information — только локальное хранение;
    - remote code: No;
    - privacy policy URL.
-7. Проверить видимость: сейчас расширение **Public — опубликовано для всех**.
-8. Отправить на review.
+8. Проверить видимость: сейчас расширение **Public — опубликовано для всех**.
+9. Отправить на review.
 
 ## 5. После публикации
 
