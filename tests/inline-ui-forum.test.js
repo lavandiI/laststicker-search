@@ -32,6 +32,8 @@ describe('forum inline UI', () => {
     expect(document.getElementById('ls-forumReindexBtn')).toBeNull();
     expect(document.getElementById('ls-forumClearBtn').textContent).toBe('Очистить');
     expect(document.getElementById('ls-forumClearBtn').title).toContain('индекс форума');
+    expect(document.querySelector('#ls-forum-panel .ls-stats').hidden).toBe(false);
+    expect(document.getElementById('ls-forumLastIndexed').hidden).toBe(false);
     expect(document.getElementById('ls-forumScopeCurrent')).toBeNull();
     expect(document.getElementById('ls-forumSearchInput').getAttribute('aria-label')).toBe(
       'Поиск по сообщениям форума',
@@ -191,6 +193,26 @@ describe('forum inline UI', () => {
     expect(panel.previousElementSibling.classList.contains('line')).toBe(true);
     expect(panel.nextElementSibling.id).toBe('comments_list');
     expect(document.getElementById('ls-forumClearBtn').title).toContain('этой темы');
+    expect(panel.querySelector('.ls-stats').hidden).toBe(true);
+    expect(document.getElementById('ls-forumLastIndexed').hidden).toBe(true);
     expect(document.getElementById('ls-forumScopeCurrent')).toBeNull();
+
+    window.InlineUI.renderForumStats({
+      topicsCount: 5,
+      messagesCount: 500,
+      sizeBytes: 50 * 1024,
+      topic: {
+        postId: '54672',
+        indexedComments: 24,
+        pageCount: 3,
+        sizeBytes: 10 * 1024,
+        complete: true,
+      },
+    });
+
+    const topicStats = document.getElementById('ls-forumTopicStats');
+    expect(topicStats.hidden).toBe(false);
+    expect(topicStats.textContent).toContain('В теме: 24 сообщений');
+    expect(topicStats.textContent).toContain('индекс 10 КБ');
   });
 });

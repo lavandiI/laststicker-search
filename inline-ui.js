@@ -827,6 +827,7 @@ function createForumSearchPanel(options = {}) {
   const panel = document.createElement('div');
   panel.id = 'ls-forum-panel';
   panel.className = 'ls-search-panel ls-forum-panel';
+  panel.dataset.topicPage = options.isTopicPage ? '1' : '0';
 
   const controls = document.createElement('div');
   controls.className = 'ls-search-controls';
@@ -858,6 +859,7 @@ function createForumSearchPanel(options = {}) {
 
   const stats = document.createElement('div');
   stats.className = 'ls-stats';
+  stats.hidden = Boolean(options.isTopicPage);
   stats.innerHTML = `
     <span class="ls-stat-item">
       <span class="ls-stat-label">Тем:</span>
@@ -886,6 +888,7 @@ function createForumSearchPanel(options = {}) {
   const lastIndexed = document.createElement('div');
   lastIndexed.id = 'ls-forumLastIndexed';
   lastIndexed.className = 'ls-last-index';
+  lastIndexed.hidden = Boolean(options.isTopicPage);
   lastIndexed.textContent = 'Индекс форума ещё не создавался';
 
   const status = document.createElement('div');
@@ -969,14 +972,28 @@ function renderForumStats(stats) {
   }
 
   if (topicStats) {
+    const panel = document.getElementById('ls-forum-panel');
+    const isTopicPage = Boolean(
+      panel && panel.dataset.topicPage === '1',
+    );
+
     if (safe.topic) {
       const pages =
         safe.topic.pageCount ||
         (Number(safe.topic.lastPageParam) || 0) + 1;
       const state = safe.topic.complete ? 'полностью' : 'частично';
-      topicStats.textContent = `В теме: ${
-        safe.topic.indexedComments || 0
-      } сообщений · ${pages} стр. · проиндексировано ${state}`;
+      const parts = [
+        `В теме: ${safe.topic.indexedComments || 0} сообщений`,
+        `${pages} стр.`,
+        `проиндексировано ${state}`,
+      ];
+      if (Number.isFinite(Number(safe.topic.sizeBytes))) {
+        parts.push(`индекс ${formatBytes(safe.topic.sizeBytes)}`);
+      }
+      topicStats.textContent = parts.join(' · ');
+      topicStats.hidden = false;
+    } else if (isTopicPage) {
+      topicStats.textContent = 'Тема не проиндексирована';
       topicStats.hidden = false;
     } else {
       topicStats.hidden = true;
