@@ -12,9 +12,7 @@ const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'u
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 
 if (manifest.version !== pkg.version) {
-  console.error(
-    `Version mismatch: manifest.json=${manifest.version}, package.json=${pkg.version}`,
-  );
+  console.error(`Version mismatch: manifest.json=${manifest.version}, package.json=${pkg.version}`);
   process.exit(1);
 }
 
@@ -33,6 +31,13 @@ const files = [
   'inline-storage.js',
   'inline-ui.js',
   'inline-styles.css',
+  'theme-core.js',
+  'theme-store.js',
+  'theme.js',
+  'theme.css',
+  'popup.html',
+  'popup.css',
+  'popup.js',
   'icons/icon16.png',
   'icons/icon32.png',
   'icons/icon48.png',

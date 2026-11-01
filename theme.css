@@ -1,0 +1,998 @@
+/* LastSticker Search — dark theme for laststicker.ru
+ *
+ * Active only when theme.js sets data-ls-theme="dark" and data-ls-scope="site"
+ * on <html>. Panel styling lives in inline-styles.css so that it always loads
+ * after this file. Site rules never touch layout: only colours, backgrounds,
+ * borders, shadows and icon rendering.
+ */
+
+html[data-ls-theme='dark'] {
+  --ls-bg: #0f1216;
+  --ls-bg-deep: #0b0e12;
+  --ls-surface: #171b22;
+  --ls-surface-2: #1f242d;
+  --ls-surface-3: #262c37;
+  --ls-border: #333b47;
+  --ls-border-soft: #2a313c;
+  --ls-text: #e7ebf2;
+  --ls-muted: #9aa4b3;
+  --ls-link: #82aaff;
+  --ls-link-hover: #ff8a7a;
+  --ls-accent: #6f8cff;
+  --ls-green: #5fd38a;
+  --ls-red: #ff7b72;
+  --ls-yellow: #ffd75e;
+  --ls-yellow-bg: rgba(255, 215, 94, 0.18);
+  --ls-input-bg: #12161c;
+}
+
+html[data-ls-theme='dark'][data-ls-palette='black'] {
+  --ls-bg: #000000;
+  --ls-bg-deep: #000000;
+  --ls-surface: #0a0c0f;
+  --ls-surface-2: #111418;
+  --ls-surface-3: #181c22;
+  --ls-border: #262b33;
+  --ls-border-soft: #1c2128;
+  --ls-input-bg: #0a0c0f;
+}
+
+/* ---------------------------------------------------------------- base */
+
+html[data-ls-theme='dark'][data-ls-scope='site'] {
+  color-scheme: dark;
+  background: var(--ls-bg-deep);
+  scrollbar-color: #3a4350 var(--ls-bg-deep);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] body {
+  background: var(--ls-bg);
+  color: var(--ls-text);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site']::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site']::-webkit-scrollbar-track {
+  background: var(--ls-bg-deep);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site']::-webkit-scrollbar-thumb {
+  background: #3a4350;
+  border: 3px solid var(--ls-bg-deep);
+  border-radius: 8px;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site']::-webkit-scrollbar-thumb:hover {
+  background: #4a5565;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] ::selection {
+  background: #2f4a8a;
+  color: #ffffff;
+}
+
+/* Icon links keep the site's blue and are lightened by the icon filter below.
+   Other links use the dark-theme link colours. */
+html[data-ls-theme='dark'][data-ls-scope='site']
+  a:not([class*='ico_']):not(.arrow):not(.arrow_prev):not(.arrow_next):not(.plus):not(.pen):link,
+html[data-ls-theme='dark'][data-ls-scope='site']
+  a:not([class*='ico_']):not(.arrow):not(.arrow_prev):not(.arrow_next):not(.plus):not(
+    .pen
+  ):visited {
+  color: var(--ls-link);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site']
+  a:not([class*='ico_']):not(.arrow):not(.arrow_prev):not(.arrow_next):not(.plus):not(.pen):hover,
+html[data-ls-theme='dark'][data-ls-scope='site']
+  a:not([class*='ico_']):not(.arrow):not(.arrow_prev):not(.arrow_next):not(.plus):not(.pen):focus {
+  color: var(--ls-link-hover);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] h1:not([class*='ico_']),
+html[data-ls-theme='dark'][data-ls-scope='site'] h2:not([class*='ico_']),
+html[data-ls-theme='dark'][data-ls-scope='site'] h3,
+html[data-ls-theme='dark'][data-ls-scope='site'] h4,
+html[data-ls-theme='dark'][data-ls-scope='site'] h5,
+html[data-ls-theme='dark'][data-ls-scope='site'] h6 {
+  color: var(--ls-text);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] hr {
+  border-color: var(--ls-border);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .err,
+html[data-ls-theme='dark'][data-ls-scope='site'] .note_err {
+  color: var(--ls-red);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .note,
+html[data-ls-theme='dark'][data-ls-scope='site'] .note_ok {
+  color: var(--ls-green);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .line,
+html[data-ls-theme='dark'][data-ls-scope='site'] #nav {
+  border-bottom-color: var(--ls-border);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .clearer {
+  color: inherit;
+}
+
+/* Inline white backgrounds are common in the site markup. Attribute selectors
+   keep those pages readable without a global "*" rule. */
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background-color:#ffffff'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background-color: #ffffff'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background-color:#fff'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background-color: #fff'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background:#ffffff'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background: #ffffff'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background:#fff'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background: #fff'] {
+  background-color: var(--ls-surface) !important;
+}
+
+/* Inline greys and accent colours. */
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='color:#666'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='color: #666'] {
+  color: var(--ls-muted) !important;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='color:#333'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='color: #333'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='color:#000'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='color: #000'] {
+  color: var(--ls-text) !important;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='color:#c00'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='color: #c00'] {
+  color: var(--ls-red) !important;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='color:#06c'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='color: #06c'] {
+  color: var(--ls-link) !important;
+}
+
+/* Presentational bgcolor attributes are still used on the site footer and
+   some tables. Only neutral white/grey values are remapped. */
+html[data-ls-theme='dark'][data-ls-scope='site'] td[bgcolor='#eeeeee'],
+html[data-ls-theme='dark'][data-ls-scope='site'] tr[bgcolor='#eeeeee'],
+html[data-ls-theme='dark'][data-ls-scope='site'] td[bgcolor='#eee'],
+html[data-ls-theme='dark'][data-ls-scope='site'] tr[bgcolor='#eee'],
+html[data-ls-theme='dark'][data-ls-scope='site'] td[bgcolor='#f7f7f7'],
+html[data-ls-theme='dark'][data-ls-scope='site'] tr[bgcolor='#f7f7f7'],
+html[data-ls-theme='dark'][data-ls-scope='site'] td[bgcolor='#f5f5f5'],
+html[data-ls-theme='dark'][data-ls-scope='site'] tr[bgcolor='#f5f5f5'],
+html[data-ls-theme='dark'][data-ls-scope='site'] td[bgcolor='#f2f2f2'],
+html[data-ls-theme='dark'][data-ls-scope='site'] tr[bgcolor='#f2f2f2'] {
+  background-color: var(--ls-surface-2) !important;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] td[bgcolor='#e4fae9'],
+html[data-ls-theme='dark'][data-ls-scope='site'] tr[bgcolor='#e4fae9'],
+html[data-ls-theme='dark'][data-ls-scope='site'] td[bgcolor='#eafce9'],
+html[data-ls-theme='dark'][data-ls-scope='site'] tr[bgcolor='#eafce9'] {
+  background-color: #16281f !important;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] td[bgcolor='#fce4e2'],
+html[data-ls-theme='dark'][data-ls-scope='site'] tr[bgcolor='#fce4e2'] {
+  background-color: #2e1a1a !important;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] td[bgcolor='#ffffff'],
+html[data-ls-theme='dark'][data-ls-scope='site'] tr[bgcolor='#ffffff'],
+html[data-ls-theme='dark'][data-ls-scope='site'] td[bgcolor='#fff'],
+html[data-ls-theme='dark'][data-ls-scope='site'] tr[bgcolor='#fff'] {
+  background-color: var(--ls-surface) !important;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] td[style*='border-top: 1px dotted #333'],
+html[data-ls-theme='dark'][data-ls-scope='site'] td[style*='border-bottom: 1px dotted #333'] {
+  border-top-color: var(--ls-border) !important;
+  border-bottom-color: var(--ls-border) !important;
+}
+
+/* ---------------------------------------------------------------- header */
+
+html[data-ls-theme='dark'][data-ls-scope='site'] #top_menu {
+  background: var(--ls-surface-2);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] #top_menu a:link,
+html[data-ls-theme='dark'][data-ls-scope='site'] #top_menu a:visited {
+  color: var(--ls-link);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] #top_menu a:hover {
+  color: var(--ls-yellow) !important;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] #top_top_ban {
+  background: var(--ls-surface);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] #top_ban_text {
+  background: var(--ls-surface-2);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] #top_ban_text a {
+  color: var(--ls-red);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] #top_ban_auction {
+  background: var(--ls-surface-2);
+  border-color: var(--ls-surface);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] #top_ban_auction dl dt {
+  background: var(--ls-surface-3);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] #top_snow {
+  background: var(--ls-surface-2);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] #logo div {
+  color: var(--ls-muted) !important;
+}
+
+/* ---------------------------------------------------------------- left menu */
+
+html[data-ls-theme='dark'][data-ls-scope='site'] #left_menu div.rounded,
+html[data-ls-theme='dark'][data-ls-scope='site'] #left_menu div.rounded_berserk {
+  background-image: none;
+  padding-bottom: 0;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] #left_menu div.outer_berserk {
+  background-image: none;
+  padding-top: 0;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] #left_menu div.rounded div.outer {
+  background-image: none;
+  padding-top: 0;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] #left_menu div.rounded div.inner {
+  background: var(--ls-surface-2);
+  border: 1px solid var(--ls-border);
+  border-radius: 8px;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] #left_menu div.rounded div.inner_berserk {
+  background: var(--ls-surface-2);
+  border-color: var(--ls-border);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] #left_menu div.rounded h4,
+html[data-ls-theme='dark'][data-ls-scope='site'] #left_menu div.rounded h4 a {
+  color: var(--ls-text);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] #left_menu div.rounded dl dt,
+html[data-ls-theme='dark'][data-ls-scope='site'] #left_menu div.rounded dl dt a {
+  color: var(--ls-muted);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] #left_menu div.rounded a:link,
+html[data-ls-theme='dark'][data-ls-scope='site'] #left_menu div.rounded a:visited {
+  color: var(--ls-link);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] #left_menu .counter {
+  background: #4a5a8a;
+  color: #ffffff;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] #left_menu .new_msg_info {
+  background: #ff6b35;
+  color: #ffffff;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] #form_login label {
+  color: var(--ls-text);
+}
+
+/* ---------------------------------------------------------------- content */
+
+html[data-ls-theme='dark'][data-ls-scope='site'] #content {
+  color: var(--ls-text);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] #content div.head_bg-l,
+html[data-ls-theme='dark'][data-ls-scope='site'] #content div.head_bg-r {
+  background-image: none;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] #content div.bar {
+  color: var(--ls-muted);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] #content div.bar b {
+  background: var(--ls-surface-3);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] #content div.bar i {
+  background: var(--ls-accent);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] #content_preview {
+  background: var(--ls-surface-2);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] div.forum_annotation {
+  border-bottom-color: var(--ls-border);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] div.forum_bottom a span,
+html[data-ls-theme='dark'][data-ls-scope='site'] div.forum_bottom2 a span {
+  color: var(--ls-red);
+}
+
+/* ---------------------------------------------------------------- tables */
+
+html[data-ls-theme='dark'][data-ls-scope='site'] table.inner,
+html[data-ls-theme='dark'][data-ls-scope='site'] table.cardlist_table {
+  background: var(--ls-surface);
+  border-color: var(--ls-border);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] table.inner td,
+html[data-ls-theme='dark'][data-ls-scope='site'] table.inner th,
+html[data-ls-theme='dark'][data-ls-scope='site'] table.cardlist_table td,
+html[data-ls-theme='dark'][data-ls-scope='site'] table.cardlist_table th {
+  border-color: var(--ls-border);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] table.inner th,
+html[data-ls-theme='dark'][data-ls-scope='site'] table.cardlist_table th {
+  background: var(--ls-surface-3);
+  color: var(--ls-text);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] table[border] {
+  border-color: var(--ls-border);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] table[border] td,
+html[data-ls-theme='dark'][data-ls-scope='site'] table[border] th {
+  border-color: var(--ls-border);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] td span {
+  color: var(--ls-muted);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .h_line {
+  background: var(--ls-surface-2);
+  color: var(--ls-text);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .plist p {
+  border-top-color: var(--ls-border);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .plist p span {
+  color: var(--ls-muted);
+}
+
+/* ---------------------------------------------------------------- forms */
+
+html[data-ls-theme='dark'][data-ls-scope='site'] input,
+html[data-ls-theme='dark'][data-ls-scope='site'] textarea,
+html[data-ls-theme='dark'][data-ls-scope='site'] select {
+  background-color: var(--ls-input-bg);
+  color: var(--ls-text);
+  border-color: var(--ls-border);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] input[type='checkbox'],
+html[data-ls-theme='dark'][data-ls-scope='site'] input[type='radio'] {
+  accent-color: var(--ls-accent);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] input[type='submit'],
+html[data-ls-theme='dark'][data-ls-scope='site'] input[type='button'],
+html[data-ls-theme='dark'][data-ls-scope='site'] button {
+  background-color: var(--ls-surface-3);
+  color: var(--ls-text);
+  border-color: var(--ls-border);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] input[type='submit']:hover,
+html[data-ls-theme='dark'][data-ls-scope='site'] input[type='button']:hover,
+html[data-ls-theme='dark'][data-ls-scope='site'] button:hover {
+  background-color: #303845;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] ::placeholder {
+  color: var(--ls-muted);
+  opacity: 1;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] select option {
+  background: var(--ls-surface);
+  color: var(--ls-text);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] input:-webkit-autofill,
+html[data-ls-theme='dark'][data-ls-scope='site'] input:-webkit-autofill:hover,
+html[data-ls-theme='dark'][data-ls-scope='site'] input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px var(--ls-input-bg) inset;
+  -webkit-text-fill-color: var(--ls-text);
+  caret-color: var(--ls-text);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .auction_memo_area {
+  color: var(--ls-red);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .form_common,
+html[data-ls-theme='dark'][data-ls-scope='site'] #form_event,
+html[data-ls-theme='dark'][data-ls-scope='site'] #form_reg,
+html[data-ls-theme='dark'][data-ls-scope='site'] #form_change_profile_stickers,
+html[data-ls-theme='dark'][data-ls-scope='site'] #form_my_idea {
+  color: var(--ls-muted);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .form_common label,
+html[data-ls-theme='dark'][data-ls-scope='site'] #form_event label,
+html[data-ls-theme='dark'][data-ls-scope='site'] #form_reg label,
+html[data-ls-theme='dark'][data-ls-scope='site'] #form_change_profile_stickers label,
+html[data-ls-theme='dark'][data-ls-scope='site'] #form_my_idea label {
+  color: var(--ls-text);
+}
+
+/* ---------------------------------------------------------------- forum */
+
+html[data-ls-theme='dark'][data-ls-scope='site'] dl.comment_new {
+  border-top-color: var(--ls-border);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] dl.comment_new dt {
+  background: var(--ls-surface-2);
+  color: var(--ls-muted);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] dl.comment_new dt.new_comment {
+  background: #1d2a33;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] dl.comment_new dt span {
+  color: var(--ls-muted);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] dl.comment_new dt a {
+  color: var(--ls-link);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] dl.comment_new dd {
+  color: var(--ls-text);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] dl.comment_new dd .comment_reply {
+  border-bottom-color: var(--ls-border);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] dl.comment_new dd .img a img {
+  border-color: var(--ls-border);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] dl.comment_new dd .hide_comment {
+  background: #3a1d2a;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] div.forum_content a img {
+  border-color: transparent;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] div.forum_content a:hover img {
+  border-color: #ed5e11;
+}
+
+/* ---------------------------------------------------------------- talks */
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .user_message {
+  color: var(--ls-text);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .user_message > div:first-child {
+  color: var(--ls-muted);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .user_message .big_text {
+  color: var(--ls-text);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .user_message a {
+  color: var(--ls-link);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .bg_normal {
+  background: var(--ls-surface);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .bg_new {
+  background: var(--ls-surface-2);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .bg_hover,
+html[data-ls-theme='dark'][data-ls-scope='site'] .bg_sel {
+  background: var(--ls-surface-3);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .bg_hide {
+  background: #3a1d2a;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .bg_restore {
+  background: #17343a;
+}
+
+/* ---------------------------------------------------------------- collections, auction, shop */
+
+html[data-ls-theme='dark'][data-ls-scope='site'] div.album_item {
+  color: var(--ls-text);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] div.album_item img.ico_album,
+html[data-ls-theme='dark'][data-ls-scope='site'] div.album_item div.ico_album img,
+html[data-ls-theme='dark'][data-ls-scope='site'] .b_almum_block img {
+  border-color: var(--ls-border);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .adv_shop,
+html[data-ls-theme='dark'][data-ls-scope='site'] .adv_cardshop {
+  background: #16281f;
+  border-color: #2f5a3f;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] div.sticker_block,
+html[data-ls-theme='dark'][data-ls-scope='site'] div.sticker_img,
+html[data-ls-theme='dark'][data-ls-scope='site'] .sticker_img_tooltip,
+html[data-ls-theme='dark'][data-ls-scope='site'] div.prev_sticker_album,
+html[data-ls-theme='dark'][data-ls-scope='site'] div.prev_sticker_page,
+html[data-ls-theme='dark'][data-ls-scope='site'] div.prev_sticker_3,
+html[data-ls-theme='dark'][data-ls-scope='site'] div.user_sticker_block {
+  background: var(--ls-surface-2);
+  border-color: var(--ls-border);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] div.user_sticker_none,
+html[data-ls-theme='dark'][data-ls-scope='site'] div.prev_sticker_none {
+  background: var(--ls-surface-2);
+  border-color: var(--ls-border);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] div.user_sticker_none div.sticker_number,
+html[data-ls-theme='dark'][data-ls-scope='site'] div.prev_sticker_none div {
+  background: var(--ls-surface-3);
+  color: var(--ls-muted);
+  border-color: var(--ls-border);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] div.sticker_block div {
+  color: #a9bcff;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] div#sticker_right h2 {
+  color: var(--ls-red);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] div#sticker_right .city_list {
+  background: var(--ls-surface-2);
+  color: var(--ls-text);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .group {
+  background: var(--ls-surface-2);
+  border-color: var(--ls-border);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .border_block,
+html[data-ls-theme='dark'][data-ls-scope='site'] .card_list_hide {
+  border-color: var(--ls-border);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .user_ico_big {
+  border-color: var(--ls-border);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .user_ico_big div {
+  background: var(--ls-surface-2);
+  border-color: var(--ls-border);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .user_ico_big img {
+  background: var(--ls-surface);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] img.user_ico {
+  background: var(--ls-surface);
+  border-color: var(--ls-border);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] img.user_ico_1,
+html[data-ls-theme='dark'][data-ls-scope='site'] img.user_ico_2,
+html[data-ls-theme='dark'][data-ls-scope='site'] img.user_ico_sm,
+html[data-ls-theme='dark'][data-ls-scope='site'] img.forum_ico {
+  background: var(--ls-surface);
+  border-color: var(--ls-surface);
+}
+
+/* ---------------------------------------------------------------- marks and colour codes */
+
+html[data-ls-theme='dark'][data-ls-scope='site'] div.mark_gold {
+  background: #2a2a18;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] div.mark_good {
+  background: #16281f;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] div.mark_bad {
+  background: #2e1a1a;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] div.mark_neutral {
+  background: var(--ls-surface-2);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] div.mark_null {
+  background: var(--ls-surface);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .mark_text_good {
+  color: var(--ls-green);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .mark_text_bad {
+  color: var(--ls-red);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .mark_text_neutral {
+  color: var(--ls-muted);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] a.user_mark_good {
+  background: #21452f;
+  color: #d7ffe4 !important;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] a.user_mark_bad {
+  background: #5a2424;
+  color: #ffd7d7 !important;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] span.mark_text_good_num {
+  background: #21452f;
+  color: #d7ffe4;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] span.mark_text_bad_num {
+  background: #5a2424;
+  color: #ffd7d7;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] span.mark_text_neutral_num {
+  background: #3a4350;
+  color: var(--ls-text);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] span.mark_text_gold_num {
+  background: #665522;
+  color: #ffe9a8;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .c_0 {
+  color: var(--ls-red) !important;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .c_1 {
+  color: #c58bd6 !important;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .c_2 {
+  color: var(--ls-link) !important;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .c_3 {
+  color: var(--ls-green) !important;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] a.sel,
+html[data-ls-theme='dark'][data-ls-scope='site'] .sel {
+  color: var(--ls-red) !important;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] a.sel_w,
+html[data-ls-theme='dark'][data-ls-scope='site'] .sel_w {
+  background: #2a3a6a;
+  color: var(--ls-text) !important;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] a.sel_b,
+html[data-ls-theme='dark'][data-ls-scope='site'] .sel_b {
+  background: #3a4350;
+  color: var(--ls-text) !important;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .swap_numbers b {
+  background: #3a4350;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .ex_post {
+  background: #4b4b9a;
+  color: #ffffff !important;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .ul_album_list LI.li_sel {
+  color: var(--ls-link);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .cards_info div.rc {
+  color: var(--ls-muted);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .none_color {
+  color: var(--ls-text);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .user_sticker_block span,
+html[data-ls-theme='dark'][data-ls-scope='site'] div.prev_sticker_3 span {
+  color: var(--ls-muted);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] a.u_on,
+html[data-ls-theme='dark'][data-ls-scope='site'] .u_on,
+html[data-ls-theme='dark'][data-ls-scope='site'] span.online {
+  color: var(--ls-green) !important;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] a.u_week,
+html[data-ls-theme='dark'][data-ls-scope='site'] .u_week {
+  color: #8ab4d8 !important;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] a.u_old,
+html[data-ls-theme='dark'][data-ls-scope='site'] .u_old {
+  color: var(--ls-muted) !important;
+}
+
+/* ---------------------------------------------------------------- pagination */
+
+html[data-ls-theme='dark'][data-ls-scope='site'] a.page {
+  background: var(--ls-surface-2);
+  color: var(--ls-muted) !important;
+  border-color: var(--ls-border);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] a.page:hover,
+html[data-ls-theme='dark'][data-ls-scope='site'] a.page#hover {
+  background: var(--ls-surface-3);
+  color: var(--ls-text) !important;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] div#pages {
+  color: var(--ls-muted);
+}
+
+/* ---------------------------------------------------------------- widgets */
+
+html[data-ls-theme='dark'][data-ls-scope='site'] #tooltip {
+  background: var(--ls-surface-2);
+  border-color: var(--ls-border);
+  color: var(--ls-text);
+  box-shadow: 0 0 8px 4px rgba(0, 0, 0, 0.45);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] #tooltip h3,
+html[data-ls-theme='dark'][data-ls-scope='site'] #tooltip div {
+  color: var(--ls-text);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .ac_results {
+  background: var(--ls-surface-2);
+  border-color: var(--ls-border);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .ac_results li {
+  color: var(--ls-text);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .ac_over {
+  background: #2a3a6a;
+  color: #ffffff;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .ac_results li span {
+  color: var(--ls-muted);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .ac_results li img.s_ico_user {
+  background: var(--ls-surface);
+  border-color: var(--ls-border);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .select2-container .select2-choice,
+html[data-ls-theme='dark'][data-ls-scope='site']
+  .select2-container
+  .select2-choice
+  > .select2-chosen,
+html[data-ls-theme='dark'][data-ls-scope='site'] .select2-drop,
+html[data-ls-theme='dark'][data-ls-scope='site'] .select2-results,
+html[data-ls-theme='dark'][data-ls-scope='site'] .select2-search input {
+  background: var(--ls-surface-2);
+  color: var(--ls-text);
+  border-color: var(--ls-border);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .select2-results .select2-highlighted {
+  background: #2a3a6a;
+  color: #ffffff;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .select2-container .select2-choice .select2-arrow {
+  background: var(--ls-surface-3);
+  border-left-color: var(--ls-border);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .ui-widget-content,
+html[data-ls-theme='dark'][data-ls-scope='site'] .ui-datepicker,
+html[data-ls-theme='dark'][data-ls-scope='site'] #ui-datepicker-div {
+  background: var(--ls-surface-2);
+  border-color: var(--ls-border);
+  color: var(--ls-text);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .ui-widget-header,
+html[data-ls-theme='dark'][data-ls-scope='site'] .ui-datepicker-header {
+  background: var(--ls-surface-3);
+  border-color: var(--ls-border);
+  color: var(--ls-text);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .ui-state-default,
+html[data-ls-theme='dark'][data-ls-scope='site'] .ui-widget-content .ui-state-default {
+  background: var(--ls-surface-3);
+  border-color: var(--ls-border);
+  color: var(--ls-text);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .ui-state-hover,
+html[data-ls-theme='dark'][data-ls-scope='site'] .ui-state-focus {
+  background: #2a3a6a;
+  border-color: var(--ls-accent);
+  color: #ffffff;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .ui-tooltip {
+  background: var(--ls-surface-2);
+  border-color: var(--ls-border);
+  color: var(--ls-text);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .inline-warning {
+  background: rgba(0, 0, 0, 0.65);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .inline-warning div {
+  background: var(--ls-surface-2);
+  border-color: var(--ls-border);
+  color: var(--ls-text);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .inline-warning p {
+  color: var(--ls-text);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] #cookieconsent,
+html[data-ls-theme='dark'][data-ls-scope='site'] .cc-window {
+  background: var(--ls-surface-2);
+  color: var(--ls-text);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] #cookieconsent a,
+html[data-ls-theme='dark'][data-ls-scope='site'] .cc-window a {
+  color: var(--ls-link);
+}
+
+/* ---------------------------------------------------------------- icons
+ *
+ * Most site icons are monochrome PNGs with a dark glyph. Inverting the icon
+ * together with the text would make normal links dark, so the filter is
+ * applied only to links whose class marks an icon, plus icon headings. The
+ * site colours are restored explicitly where needed. Yellow/orange icons
+ * (favorites, RSS) are intentionally left alone.
+ */
+
+html[data-ls-theme='dark'][data-ls-scope='site'] a[class*='ico_'],
+html[data-ls-theme='dark'][data-ls-scope='site'] a.arrow,
+html[data-ls-theme='dark'][data-ls-scope='site'] a.arrow_prev,
+html[data-ls-theme='dark'][data-ls-scope='site'] a.arrow_next,
+html[data-ls-theme='dark'][data-ls-scope='site'] a.plus,
+html[data-ls-theme='dark'][data-ls-scope='site'] a.pen,
+html[data-ls-theme='dark'][data-ls-scope='site'] h1[class*='ico_'],
+html[data-ls-theme='dark'][data-ls-scope='site'] h2[class*='ico_'],
+html[data-ls-theme='dark'][data-ls-scope='site'] .ico_swap,
+html[data-ls-theme='dark'][data-ls-scope='site'] .ico_memo,
+html[data-ls-theme='dark'][data-ls-scope='site'] .ico_cards_from,
+html[data-ls-theme='dark'][data-ls-scope='site'] .ico_cards_to,
+html[data-ls-theme='dark'][data-ls-scope='site'] .ico_user,
+html[data-ls-theme='dark'][data-ls-scope='site'] .ico_guests,
+html[data-ls-theme='dark'][data-ls-scope='site'] .ico_blacklist,
+html[data-ls-theme='dark'][data-ls-scope='site'] .ico_friends,
+html[data-ls-theme='dark'][data-ls-scope='site'] .ico_smile {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/* Icon headings and non-link icon spans keep a dark base colour so the
+   filter turns them light; their own link colours are preserved. */
+html[data-ls-theme='dark'][data-ls-scope='site'] h1[class*='ico_'],
+html[data-ls-theme='dark'][data-ls-scope='site'] h2[class*='ico_'],
+html[data-ls-theme='dark'][data-ls-scope='site'] .ico_swap,
+html[data-ls-theme='dark'][data-ls-scope='site'] .ico_memo,
+html[data-ls-theme='dark'][data-ls-scope='site'] .ico_cards_from,
+html[data-ls-theme='dark'][data-ls-scope='site'] .ico_cards_to,
+html[data-ls-theme='dark'][data-ls-scope='site'] .ico_user,
+html[data-ls-theme='dark'][data-ls-scope='site'] .ico_guests,
+html[data-ls-theme='dark'][data-ls-scope='site'] .ico_blacklist,
+html[data-ls-theme='dark'][data-ls-scope='site'] .ico_friends,
+html[data-ls-theme='dark'][data-ls-scope='site'] .ico_smile {
+  color: #333333;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] h1[class*='ico_'] a,
+html[data-ls-theme='dark'][data-ls-scope='site'] h2[class*='ico_'] a {
+  color: #06c;
+}
+
+/* Empty icon blocks in checklists have no text, so a direct filter is safe. */
+html[data-ls-theme='dark'][data-ls-scope='site'] .cards_info div.mem,
+html[data-ls-theme='dark'][data-ls-scope='site'] .cards_info div.pz,
+html[data-ls-theme='dark'][data-ls-scope='site'] .cards_info div.au,
+html[data-ls-theme='dark'][data-ls-scope='site'] .cards_info div.ar,
+html[data-ls-theme='dark'][data-ls-scope='site'] .cards_scan div.sf,
+html[data-ls-theme='dark'][data-ls-scope='site'] .cards_scan div.sb {
+  filter: invert(1) brightness(1.3);
+}
+
+/* ---------------------------------------------------------------- image dimming
+ *
+ * Optional comfort setting. Userpics and UI icons are excluded so that only
+ * album covers, scans and photos in messages are dimmed.
+ */
+
+html[data-ls-theme='dark'][data-ls-scope='site'][data-ls-images='soft']
+  #content
+  img:not(.user_ico):not(.user_ico_sm):not(.user_ico_1):not(.user_ico_2):not(.user_ico_new):not(
+    .forum_ico
+  ):not(.s_ico_user) {
+  filter: brightness(0.9);
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'][data-ls-images='strong']
+  #content
+  img:not(.user_ico):not(.user_ico_sm):not(.user_ico_1):not(.user_ico_2):not(.user_ico_new):not(
+    .forum_ico
+  ):not(.s_ico_user) {
+  filter: brightness(0.8);
+}
+
+/* ---------------------------------------------------------------- print */
+
+@media print {
+  html[data-ls-theme='dark'][data-ls-scope='site'] body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+}

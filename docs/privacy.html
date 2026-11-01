@@ -41,7 +41,11 @@
       <li>идентификаторы диалогов, тем и сообщений;</li>
       <li>URL страниц диалогов и тем;</li>
       <li>названия тем, категории и метки форума;</li>
-      <li>последний поисковый запрос и время индексации.</li>
+      <li>последний поисковый запрос и время индексации;</li>
+      <li>
+        настройки оформления: тема, палитра, область применения и приглушение
+        изображений.
+      </li>
     </ul>
     <p>
       Комментарии форума — публичный контент сайта. Расширение сохраняет их локально
@@ -51,11 +55,11 @@
     <h3>Где хранятся данные</h3>
     <p>
       Данные сохраняются только локально в браузере пользователя: индекс личных
-      диалогов — в <code>chrome.storage.local</code>, индекс форума — в IndexedDB
-      расширения (<code>laststicker-search-forum</code>). При обновлении со старой
-      версии данные диалогов могут быть перенесены из <code>localStorage</code> сайта
-      и удалены оттуда. Расширение не отправляет данные на серверы разработчика или
-      третьих лиц.
+      диалогов и настройки оформления — в <code>chrome.storage.local</code>, индекс
+      форума — в IndexedDB расширения (<code>laststicker-search-forum</code>).
+      При обновлении со старой версии данные диалогов могут быть перенесены из
+      <code>localStorage</code> сайта и удалены оттуда. Расширение не отправляет
+      данные на серверы разработчика или третьих лиц.
     </p>
 
     <h3>Как используются данные</h3>
@@ -133,7 +137,8 @@
       <li>dialog, topic, and message identifiers;</li>
       <li>dialog and topic page URLs;</li>
       <li>topic titles, categories, and forum tags;</li>
-      <li>the last search query and the last indexing time.</li>
+      <li>the last search query and the last indexing time;</li>
+      <li>appearance settings: theme, palette, scope, and image dimming.</li>
     </ul>
     <p>
       Forum comments are public site content. The extension stores them locally only
@@ -142,12 +147,12 @@
 
     <h3>Where data is stored</h3>
     <p>
-      Data is stored only locally in the user's browser: the dialog index in
-      <code>chrome.storage.local</code>, the forum index in the extension's IndexedDB
-      (<code>laststicker-search-forum</code>). When upgrading from an older version,
-      dialog data may be migrated from the site's <code>localStorage</code> and removed
-      from there. The extension does not send data to the developer's or any third
-      party's servers.
+      Data is stored only locally in the user's browser: the dialog index and
+      appearance settings in <code>chrome.storage.local</code>, the forum index in the
+      extension's IndexedDB (<code>laststicker-search-forum</code>). When upgrading
+      from an older version, dialog data may be migrated from the site's
+      <code>localStorage</code> and removed from there. The extension does not send
+      data to the developer's or any third party's servers.
     </p>
 
     <h3>How data is used</h3>
@@ -211,7 +216,7 @@
 
   <footer class="site-footer">
     <div class="container footer-inner">
-      <div><strong>LastSticker Search</strong> <span class="muted">· версия 1.5.0</span></div>
+      <div><strong>LastSticker Search</strong> <span class="muted">· версия 1.6.0</span></div>
       <div class="footer-links"><a href="index.html">Главная</a></div>
     </div>
   </footer>

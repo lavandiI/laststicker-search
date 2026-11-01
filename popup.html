@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LastSticker Search — Оформление</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="ls-popup-header">
+      <img class="ls-popup-icon" src="icons/icon32.png" alt="" width="28" height="28" />
+      <div class="ls-popup-title">
+        <h1>LastSticker Search</h1>
+        <p>Оформление</p>
+      </div>
+      <span class="ls-version" id="version"></span>
+    </header>
+
+    <main class="ls-popup-main">
+      <fieldset class="ls-field">
+        <legend>Тема</legend>
+        <div class="ls-segmented">
+          <label>
+            <input type="radio" name="mode" value="light" />
+            <span>Светлая</span>
+          </label>
+          <label>
+            <input type="radio" name="mode" value="dark" />
+            <span>Тёмная</span>
+          </label>
+          <label>
+            <input type="radio" name="mode" value="system" />
+            <span>Как в системе</span>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset class="ls-field">
+        <legend>Палитра</legend>
+        <div class="ls-choice-grid">
+          <label class="ls-choice-card">
+            <input type="radio" name="palette" value="graphite" />
+            <span class="ls-choice-body">
+              <span class="ls-swatch ls-swatch--graphite" aria-hidden="true"></span>
+              <span>
+                <b>Графит</b>
+                <small>Мягкий тёмно-серый</small>
+              </span>
+            </span>
+          </label>
+          <label class="ls-choice-card">
+            <input type="radio" name="palette" value="black" />
+            <span class="ls-choice-body">
+              <span class="ls-swatch ls-swatch--black" aria-hidden="true"></span>
+              <span>
+                <b>Чёрная</b>
+                <small>Для OLED и ночи</small>
+              </span>
+            </span>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset class="ls-field">
+        <legend>Применять</legend>
+        <div class="ls-radio-stack">
+          <label class="ls-radio-row">
+            <input type="radio" name="scope" value="site" />
+            <span>
+              <b>Весь сайт</b>
+              <small>Тёмное оформление laststicker.ru и панелей поиска.</small>
+            </span>
+          </label>
+          <label class="ls-radio-row">
+            <input type="radio" name="scope" value="panel" />
+            <span>
+              <b>Только панели поиска</b>
+              <small>Сайт остаётся светлым.</small>
+            </span>
+          </label>
+        </div>
+      </fieldset>
+
+      <label class="ls-select-row" for="images">
+        <span>Изображения</span>
+        <select id="images">
+          <option value="off">Не приглушать</option>
+          <option value="soft">Слегка (–10%)</option>
+          <option value="strong">Заметно (–20%)</option>
+        </select>
+      </label>
+
+      <section class="ls-preview" aria-label="Предпросмотр">
+        <div class="ls-preview-column">
+          <div class="ls-preview-label">Сайт</div>
+          <div class="ls-preview-site" id="previewSite" data-images="off">
+            <div class="ls-preview-cover" aria-hidden="true"></div>
+            <div class="ls-preview-heading">Обмен наклейками Panini</div>
+            <div class="ls-preview-link">Все предложения →</div>
+            <div class="ls-preview-table">
+              <div class="ls-preview-row ls-preview-row--head">
+                <span>Лот</span><span>Цена</span>
+              </div>
+              <div class="ls-preview-row"><span>Наклейки 1–50</span><span>1 200 ₽</span></div>
+            </div>
+            <p class="ls-preview-text">
+              Ищу <mark class="ls-preview-mark">обмен</mark> на карточки NHL.
+            </p>
+          </div>
+        </div>
+
+        <div class="ls-preview-column">
+          <div class="ls-preview-label">Панель</div>
+          <div class="ls-preview-panel" id="previewPanel">
+            <div class="ls-preview-input">Поиск по сообщениям…</div>
+            <div class="ls-preview-actions">
+              <span class="ls-preview-btn ls-preview-btn--primary">Индексировать</span>
+              <span class="ls-preview-btn ls-preview-btn--danger">Очистить</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="ls-popup-footer">
+      <div class="ls-footer-actions">
+        <button type="button" class="ls-reset" id="resetBtn">Сбросить настройки</button>
+        <span class="ls-save-status" id="saveStatus" role="status" aria-live="polite"></span>
+      </div>
+      <p class="ls-privacy">
+        Изменения применяются сразу. Настройки хранятся только в вашем браузере.
+      </p>
+    </footer>
+
+    <script src="theme-core.js"></script>
+    <script src="theme-store.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>
