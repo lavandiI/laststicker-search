@@ -20,6 +20,19 @@
   let currentJob = null;
   let lastProgressAt = 0;
 
+  // DOMParser is inert, but Chrome still reports CSP violations for inline
+  // event handlers present in the parsed HTML. Remove them before parsing.
+  function sanitizeHtml(html) {
+    return String(html)
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+      .replace(/javascript:/gi, '');
+  }
+
+  function parseHtml(html) {
+    return new DOMParser().parseFromString(sanitizeHtml(html), 'text/html');
+  }
+
   function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
@@ -194,7 +207,7 @@
 
   async function fetchListSection(path, rowsById, pageUrls) {
     const html = await fetchText(BASE_URL + path);
-    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const doc = parseHtml(html);
     if (!doc.querySelector('#talks_table')) {
       throw new Error('Сессия laststicker истекла или страница недоступна');
     }
@@ -225,7 +238,7 @@
           errors.push(`Список: не удалось загрузить ${result.url}`);
           return;
         }
-        const doc = new DOMParser().parseFromString(result.html, 'text/html');
+        const doc = parseHtml(result.html);
         addRows(rowsById, LSParser.extractListPage(doc).rows);
       });
     }
@@ -235,7 +248,7 @@
     const talkId = String(row.talkId);
     const talkUrl = `${BASE_URL}/users/my_talks/${talkId}/`;
     const baseHtml = await fetchText(talkUrl);
-    const baseDoc = new DOMParser().parseFromString(baseHtml, 'text/html');
+    const baseDoc = parseHtml(baseHtml);
 
     const partnerLink = baseDoc.querySelector('#content h1 a');
     const partner = partnerLink ? partnerLink.textContent.trim() : '';
@@ -285,7 +298,7 @@
         if (!result.html) continue;
         loadedPages++;
 
-        const pageDoc = new DOMParser().parseFromString(result.html, 'text/html');
+        const pageDoc = parseHtml(result.html);
         if (!pageDoc.querySelector('.user_message')) {
           reachedEnd = true;
           break;
@@ -316,6 +329,7 @@
     const errors = [];
     const rowsById = new Map();
     const pageUrls = new Set();
+    const indexGeneration = await InlineStorage.loadIndexGeneration();
     let indexedSections = 0;
     let unreadParams;
     let unreadCount;
@@ -409,6 +423,11 @@
         messagesCount: allMessages.length,
         dialogsCount: 0,
       };
+    }
+
+    const currentGeneration = await InlineStorage.loadIndexGeneration();
+    if (currentGeneration !== indexGeneration) {
+      throw new Error('Индекс очищен во время индексации');
     }
 
     const existing = await InlineStorage.loadMessages();
@@ -550,6 +569,7 @@
 
   const api = {
     SECTIONS,
+    sanitizeHtml,
     filterChangedTalks,
     fetchUnreadCount,
     fetchTalkMessages,

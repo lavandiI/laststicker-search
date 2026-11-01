@@ -180,6 +180,51 @@ describe('offscreen indexer', () => {
     expect(result.reason).toContain('полного индекса');
   });
 
+  test('removes inline handlers and scripts before parsing', () => {
+    const cleaned = global.indexer.sanitizeHtml(
+      '<tr onClick="go_talk(1)"><td onclick=alert(1)>ok</td></tr><script>alert(2)</script>',
+    );
+
+    expect(cleaned).not.toContain('onClick');
+    expect(cleaned).not.toContain('onclick');
+    expect(cleaned).not.toContain('<script');
+    expect(cleaned).toContain('ok');
+  });
+
+  test('does not save an index after storage was cleared during indexing', async () => {
+    let releaseTalk;
+    let markTalkStarted;
+    const talkGate = new Promise((resolve) => {
+      releaseTalk = resolve;
+    });
+    const talkStarted = new Promise((resolve) => {
+      markTalkStarted = resolve;
+    });
+
+    const baseFetch = global.fetch;
+    global.fetch = jest.fn(async (url) => {
+      const href = String(url);
+      if (
+        href.includes('/users/my_talks/41292/') &&
+        !/\/page\d+\//.test(href)
+      ) {
+        markTalkStarted();
+        await talkGate;
+      }
+      return baseFetch(href);
+    });
+
+    const pending = runIndex('manual');
+    await talkStarted;
+    await window.InlineStorage.clearMessages();
+    releaseTalk();
+
+    const result = await pending;
+
+    expect(result.error).toContain('очищен');
+    expect(store.ls_search_messages).toBeUndefined();
+  });
+
   test('runs auto refresh when there are no unread messages', async () => {
     store.ls_search_auto_enabled = '1';
     store.ls_search_full_index_at = String(Date.now());

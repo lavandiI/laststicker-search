@@ -397,6 +397,47 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return false;
   }
 
+  // Offscreen documents do not get chrome.storage in this Chrome version.
+  // Keep all index data in the extension's normal storage via RPC.
+  if (request.action && request.action.startsWith('lsStorage')) {
+    if (!sender || sender.id !== chrome.runtime.id || sender.tab) {
+      sendResponse({ error: 'Storage RPC is only available to extension pages' });
+      return false;
+    }
+
+    if (request.action === 'lsStorageGet') {
+      chrome.storage.local
+        .get(request.keys || [])
+        .then((result) => sendResponse({ result }))
+        .catch((error) => sendResponse({ error: error.message }));
+      return true;
+    }
+
+    if (request.action === 'lsStorageSet') {
+      chrome.storage.local
+        .set(request.items || {})
+        .then(() => sendResponse({ result: true }))
+        .catch((error) => sendResponse({ error: error.message }));
+      return true;
+    }
+
+    if (request.action === 'lsStorageRemove') {
+      chrome.storage.local
+        .remove(request.keys || [])
+        .then(() => sendResponse({ result: true }))
+        .catch((error) => sendResponse({ error: error.message }));
+      return true;
+    }
+
+    if (request.action === 'lsStorageGetBytes') {
+      chrome.storage.local
+        .getBytesInUse(request.key)
+        .then((bytes) => sendResponse({ result: bytes }))
+        .catch((error) => sendResponse({ error: error.message }));
+      return true;
+    }
+  }
+
   console.log('[LS Search] Background received message:', request.action);
 
   if (request.action === 'cancelIndex') {

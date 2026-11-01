@@ -1204,10 +1204,15 @@
                   } без изменений`,
                   'success',
                 );
-              } else if (result.skippedTalks > 0) {
+              } else if (result.skippedTalks > 0 && stats.messagesCount > 0) {
                 window.InlineUI.showStatus(
                   `Всё актуально: пропущено ${result.skippedTalks} диалогов без изменений`,
                   'success',
+                );
+              } else if (stats.messagesCount === 0) {
+                window.InlineUI.showStatus(
+                  'Индекс пуст: нажмите «Индексировать» ещё раз',
+                  'error',
                 );
               } else {
                 window.InlineUI.showStatus('Новых сообщений не найдено', 'success');
@@ -1332,6 +1337,13 @@
     if (!confirmed) return;
     
     try {
+      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id) {
+        chrome.runtime.sendMessage({ action: 'cancelIndex' }, () => {
+          void chrome.runtime.lastError;
+        });
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+
       await window.InlineStorage.clearMessages();
       
       window.InlineUI.renderStats({ dialogsCount: 0, messagesCount: 0 });
