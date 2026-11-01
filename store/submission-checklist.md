@@ -36,13 +36,15 @@ npm run package
 
 ## 3. Скриншоты
 
-Три файла 1280×800, 24-бит PNG без альфа-канала:
+Пять файлов 1280×800, 24-бит PNG без альфа-канала:
 
-1. `store/screenshot-dialogs-1.5.0.png` — панель поиска по диалогам.
-2. `store/screenshot-forum-1.5.0.png` — глобальный поиск по темам форума.
-3. `store/screenshot-topic-1.5.0.png` — панель темы с поиском только по ней.
+1. `store/screenshot-dialogs-1.5.0.png` — поиск по всем диалогам.
+2. `store/screenshot-dialog-single-1.5.0.png` — панель отдельного диалога.
+3. `store/screenshot-forum-1.5.0.png` — глобальный поиск по темам форума.
+4. `store/screenshot-topic-1.5.0.png` — панель темы с поиском только по ней.
+5. `store/screenshot-forum-indexing-1.5.0.png` — прогресс индексации темы.
 
-В кадре нет реальных имён и сообщений — данные демонстрационные.
+В Dashboard удалить старые скриншоты 1.4.0 и загрузить эти пять. В кадре нет реальных имён и сообщений — данные демонстрационные.
 
 Рекламные изображения:
 
@@ -61,7 +63,7 @@ npm run package
    - категория: Tools (группа Productivity);
    - язык: Русский;
    - иконка 128×128 уже внутри ZIP.
-5. Загрузить три скриншота 1.5.0, `store/promo-440x280.png` в **Small promo tile** и `store/marquee-1400x560.jpg` в **Marquee promo tile**.
+5. Удалить старые скриншоты 1.4.0, загрузить пять скриншотов 1.5.0, `store/promo-440x280.png` в **Small promo tile** и `store/marquee-1400x560.jpg` в **Marquee promo tile**.
 6. В **What's new** вставить `store/whats-new-1.5.0.txt`.
 7. Проверить **Privacy practices**:
    - single purpose: диалоги и форум laststicker.ru;

@@ -131,11 +131,13 @@ LastSticker Search — расширение для Chrome, которое пом
 
 Файлы (1280×800, 24-бит PNG, без альфа-канала):
 
-- `store/screenshot-dialogs-1.5.0.png` — панель поиска по диалогам;
+- `store/screenshot-dialogs-1.5.0.png` — поиск по всем диалогам;
+- `store/screenshot-dialog-single-1.5.0.png` — панель отдельного диалога;
 - `store/screenshot-forum-1.5.0.png` — глобальный поиск по проиндексированным темам форума;
-- `store/screenshot-topic-1.5.0.png` — панель темы с поиском только по этой теме.
+- `store/screenshot-topic-1.5.0.png` — панель темы с поиском только по этой теме;
+- `store/screenshot-forum-indexing-1.5.0.png` — прогресс индексации темы.
 
-Загрузить в **Store listing → Graphic assets → Screenshots**. В кадре нет реальных личных сообщений: имена и тексты демонстрационные.
+В Dashboard удали старые скриншоты 1.4.0 и загрузи эти пять. Максимум для карточки — 5 скриншотов. В кадре нет реальных личных сообщений: имена и тексты демонстрационные.
 
 Для поля **What's new** используйте `store/whats-new-1.5.0.txt`.
 
