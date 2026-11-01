@@ -57,6 +57,15 @@
       сообщению. Данные не продаются, не передаются и не используются для рекламы.
     </p>
 
+    <h3>Автообновление</h3>
+    <p>
+      Автообновление включено по умолчанию. Если оно включено, расширение раз в
+      6 часов проверяет список диалогов и обновляет локальный индекс. Автообновление
+      пропускается, если в аккаунте есть непрочитанные сообщения или ещё не был
+      выполнен полный индекс. Автообновление не работает, когда браузер закрыт.
+      Его можно отключить в панели расширения.
+    </p>
+
     <h3>Доступ к сайту</h3>
     <p>
       Расширение работает только на <code>laststicker.ru</code> и
@@ -69,6 +78,8 @@
     <ul>
       <li><code>storage</code> — локальное хранение индекса;</li>
       <li><code>scripting</code> — внедрение панели поиска и парсера на страницы сайта;</li>
+      <li><code>offscreen</code> — локальный парсинг HTML без открытой вкладки;</li>
+      <li><code>alarms</code> — периодическая проверка автообновления;</li>
       <li>host permissions — доступ только к <code>laststicker.ru</code> и <code>www.laststicker.ru</code>.</li>
     </ul>
     <p>
@@ -127,6 +138,15 @@
       Data is not sold, shared, or used for advertising.
     </p>
 
+    <h3>Automatic refresh</h3>
+    <p>
+      Automatic refresh is enabled by default. When enabled, the extension checks
+      the dialog list and updates the local index every 6 hours. It is skipped when
+      the account has unread messages or when a complete index has not been built
+      yet. It does not run while the browser is closed. It can be disabled in the
+      extension panel.
+    </p>
+
     <h3>Site access</h3>
     <p>
       The extension works only on <code>laststicker.ru</code> and
@@ -139,6 +159,8 @@
     <ul>
       <li><code>storage</code> — local storage of the index;</li>
       <li><code>scripting</code> — inject the search panel and parser into site pages;</li>
+      <li><code>offscreen</code> — local HTML parsing without an open tab;</li>
+      <li><code>alarms</code> — periodic automatic refresh;</li>
       <li>host permissions — access only <code>laststicker.ru</code> and <code>www.laststicker.ru</code>.</li>
     </ul>
     <p>
@@ -168,7 +190,7 @@
 
   <footer class="site-footer">
     <div class="container footer-inner">
-      <div><strong>LastSticker Search</strong> <span class="muted">· версия 1.3.1</span></div>
+      <div><strong>LastSticker Search</strong> <span class="muted">· версия 1.4.0</span></div>
       <div class="footer-links"><a href="index.html">Главная</a></div>
     </div>
   </footer>

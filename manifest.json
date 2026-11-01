@@ -1,9 +1,10 @@
 {
   "manifest_version": 3,
   "name": "LastSticker Search",
-  "version": "1.3.1",
+  "version": "1.4.0",
+  "minimum_chrome_version": "109",
   "description": "Индексация, поиск и переход к сообщениям в диалогах на laststicker.ru",
-  "permissions": ["storage", "scripting"],
+  "permissions": ["storage", "scripting", "offscreen", "alarms"],
   "host_permissions": ["*://laststicker.ru/*", "*://www.laststicker.ru/*"],
   "background": {
     "service_worker": "background.js"

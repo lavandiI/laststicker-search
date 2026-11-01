@@ -20,8 +20,19 @@ const ICONS_DISABLED = {
 };
 
 const STORAGE_KEY = 'isEnabled';
+const OFFSCREEN_URL = 'offscreen.html';
+const AUTO_ALARM = 'ls-auto-index';
+const AUTO_INTERVAL_MINUTES = 360;
+const AUTO_ENABLED_KEY = 'ls_search_auto_enabled';
+const FULL_INDEX_KEY = 'ls_search_full_index_at';
+const LAST_INDEXED_KEY = 'ls_search_last_indexed_at';
+const AUTO_META_KEY = 'ls_search_auto_meta';
+const MESSAGES_KEY = 'ls_search_messages';
+
 let indexInProgress = false;
 let indexCancelRequested = false;
+let activeJob = null;
+let offscreenCreating = null;
 
 async function setExtensionIcon(enabled) {
   const icons = enabled ? ICONS_ENABLED : ICONS_DISABLED;
@@ -75,12 +86,327 @@ chrome.action.onClicked.addListener(async () => {
 
 loadAndSetInitialState();
 
+function setBadgeText(text, color) {
+  try {
+    if (chrome.action && chrome.action.setBadgeText) {
+      chrome.action.setBadgeText({ text });
+      if (color && chrome.action.setBadgeBackgroundColor) {
+        chrome.action.setBadgeBackgroundColor({ color });
+      }
+    }
+  } catch {
+    // Badge updates are best-effort.
+  }
+}
+
+function sendToOffscreenOnce(message) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({ ...message, target: 'offscreen' }, (response) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      resolve(response);
+    });
+  });
+}
+
+async function sendToOffscreen(message) {
+  let lastError = null;
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await sendToOffscreenOnce(message);
+    } catch (e) {
+      lastError = e;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
+
+  throw lastError;
+}
+
+async function ensureOffscreenDocument() {
+  if (!chrome.offscreen) {
+    const error = new Error('Offscreen API unavailable');
+    error.code = 'OFFSCREEN_UNAVAILABLE';
+    throw error;
+  }
+
+  if (offscreenCreating) return offscreenCreating;
+
+  offscreenCreating = (async () => {
+    try {
+      await chrome.offscreen.createDocument({
+        url: OFFSCREEN_URL,
+        reasons: ['DOM_PARSER'],
+        justification: 'Локальный парсинг страниц laststicker для поиска',
+      });
+    } catch (e) {
+      const message = String((e && e.message) || e);
+      if (!/single offscreen|already/i.test(message)) throw e;
+    }
+  })();
+
+  try {
+    await offscreenCreating;
+  } finally {
+    offscreenCreating = null;
+  }
+}
+
+async function saveAutoError(message) {
+  try {
+    const data = await chrome.storage.local.get(AUTO_META_KEY);
+    let meta = {};
+    try {
+      meta = data[AUTO_META_KEY] ? JSON.parse(data[AUTO_META_KEY]) : {};
+    } catch {
+      meta = {};
+    }
+    await chrome.storage.local.set({
+      [AUTO_META_KEY]: JSON.stringify({
+        ...meta,
+        lastCheck: Date.now(),
+        lastError: message,
+      }),
+    });
+  } catch {
+    // Storage errors are non-fatal for the scheduler.
+  }
+}
+
+async function ensureFullIndexFlagRaw() {
+  const data = await chrome.storage.local.get([
+    FULL_INDEX_KEY,
+    LAST_INDEXED_KEY,
+    MESSAGES_KEY,
+  ]);
+
+  if (data[FULL_INDEX_KEY]) return true;
+  if (!data[LAST_INDEXED_KEY]) return false;
+
+  let messages;
+  try {
+    messages = JSON.parse(data[MESSAGES_KEY] || '[]');
+  } catch {
+    return false;
+  }
+  if (!Array.isArray(messages) || messages.length === 0) return false;
+
+  await chrome.storage.local.set({
+    [FULL_INDEX_KEY]: String(data[LAST_INDEXED_KEY]),
+  });
+  return true;
+}
+
+async function getAutoState() {
+  const data = await chrome.storage.local.get([
+    AUTO_ENABLED_KEY,
+    FULL_INDEX_KEY,
+    LAST_INDEXED_KEY,
+  ]);
+
+  const enabledValue = data[AUTO_ENABLED_KEY];
+  const enabled = enabledValue !== '0' && enabledValue !== false;
+  const lastIndexedAt = Number(data[LAST_INDEXED_KEY]) || 0;
+
+  return {
+    enabled,
+    full: Boolean(data[FULL_INDEX_KEY]),
+    lastIndexedAt,
+  };
+}
+
+async function scheduleAutoAlarm() {
+  const state = await getAutoState();
+  if (state.enabled && state.full) {
+    chrome.alarms.create(AUTO_ALARM, { periodInMinutes: AUTO_INTERVAL_MINUTES });
+  } else {
+    chrome.alarms.clear(AUTO_ALARM);
+  }
+}
+
+async function runAutoIfDue() {
+  const state = await getAutoState();
+  if (!state.enabled || !state.full) return;
+
+  const data = await chrome.storage.local.get(AUTO_META_KEY);
+  let meta;
+  try {
+    meta = data[AUTO_META_KEY] ? JSON.parse(data[AUTO_META_KEY]) : {};
+  } catch {
+    meta = {};
+  }
+
+  const lastAttempt = Math.max(
+    Number(meta.lastRun) || 0,
+    Number(meta.lastCheck) || 0,
+    state.lastIndexedAt || 0,
+  );
+  const intervalMs = AUTO_INTERVAL_MINUTES * 60 * 1000;
+  if (lastAttempt && Date.now() - lastAttempt < intervalMs) return;
+
+  await startAutoIndex();
+}
+
+async function startAutoIndex() {
+  if (activeJob || indexInProgress) return;
+  if (!(await isExtensionEnabled())) return;
+
+  const job = {
+    jobId: `auto-${Date.now()}`,
+    source: 'auto',
+    tabId: null,
+  };
+
+  try {
+    await ensureOffscreenDocument();
+    activeJob = { ...job, sendResponse: null };
+    const response = await sendToOffscreen({
+      action: 'startIndex',
+      jobId: job.jobId,
+      source: job.source,
+    });
+    if (response && response.error) {
+      throw new Error(response.error);
+    }
+  } catch (e) {
+    activeJob = null;
+    await saveAutoError(e.message);
+    setBadgeText('!', '#993333');
+  }
+}
+
+async function startOffscreenIndex(job, sendResponse) {
+  if (activeJob) {
+    sendResponse({ error: 'Индексация уже выполняется' });
+    return;
+  }
+
+  try {
+    await ensureOffscreenDocument();
+    activeJob = { ...job, sendResponse };
+    const response = await sendToOffscreen({
+      action: 'startIndex',
+      jobId: job.jobId,
+      source: job.source,
+    });
+    if (response && response.error) {
+      throw new Error(response.error);
+    }
+  } catch (e) {
+    activeJob = null;
+
+    if (job.source === 'manual' && e.code === 'OFFSCREEN_UNAVAILABLE') {
+      indexAllSectionsAsync({}, { tab: { id: job.tabId } }, sendResponse).catch((error) => {
+        sendResponse({ error: error.message });
+      });
+      return;
+    }
+
+    if (job.source === 'auto') {
+      await saveAutoError(e.message);
+    }
+    setBadgeText('!', '#993333');
+    sendResponse({ error: e.message });
+  }
+}
+
+async function finishOffscreenJob(message) {
+  const job = activeJob;
+  if (!job || job.jobId !== message.jobId) return;
+
+  activeJob = null;
+  setBadgeText('');
+
+  const result = message.result || {};
+  if (result.error) {
+    if (job.source === 'auto') {
+      await saveAutoError(result.error);
+    }
+    if (job.sendResponse) {
+      job.sendResponse({ error: result.error });
+    }
+    setBadgeText('!', '#993333');
+    return;
+  }
+
+  if (job.sendResponse) {
+    job.sendResponse({ result });
+  }
+  scheduleAutoAlarm();
+}
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === AUTO_ALARM) {
+    startAutoIndex();
+  }
+});
+
+chrome.runtime.onInstalled.addListener(async () => {
+  await ensureFullIndexFlagRaw();
+  await scheduleAutoAlarm();
+  await runAutoIfDue();
+});
+
+chrome.runtime.onStartup.addListener(async () => {
+  await ensureFullIndexFlagRaw();
+  await scheduleAutoAlarm();
+  await runAutoIfDue();
+});
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local') return;
+  if (changes[AUTO_ENABLED_KEY] || changes[FULL_INDEX_KEY]) {
+    scheduleAutoAlarm();
+  }
+});
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (!request || !request.action) return false;
+
+  if (request.target === 'background' && request.action === 'indexProgress') {
+    if (activeJob && request.jobId === activeJob.jobId) {
+      const percent = request.total
+        ? Math.round((request.done / request.total) * 100)
+        : 0;
+      setBadgeText(request.total ? `${percent}%` : '', '#2444bc');
+
+      if (activeJob.tabId) {
+        chrome.tabs.sendMessage(
+          activeJob.tabId,
+          {
+            action: 'indexProgress',
+            done: request.done,
+            total: request.total,
+            messageCount: request.messageCount,
+            currentTalkId: request.currentTalkId,
+          },
+          () => {
+            void chrome.runtime.lastError;
+          },
+        );
+      }
+    }
+    return false;
+  }
+
+  if (request.target === 'background' && request.action === 'indexFinished') {
+    finishOffscreenJob(request);
+    return false;
+  }
+
   console.log('[LS Search] Background received message:', request.action);
 
   if (request.action === 'cancelIndex') {
     indexCancelRequested = true;
-    sendResponse({ cancelled: indexInProgress });
+
+    if (activeJob) {
+      sendToOffscreen({ action: 'cancelIndex' }).catch(() => {});
+    }
+
+    sendResponse({ cancelled: indexInProgress || Boolean(activeJob) });
     return false;
   }
 
@@ -137,12 +463,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse({ error: 'Расширение отключено' });
         return;
       }
-      indexAllSectionsAsync(request, sender, sendResponse).catch((e) => {
-        console.error('[LS Search] Indexing failed:', e);
-        indexInProgress = false;
-        indexCancelRequested = false;
-        sendResponse({ error: e.message });
-      });
+
+      await startOffscreenIndex(
+        {
+          jobId: `manual-${Date.now()}`,
+          source: 'manual',
+          tabId: sender.tab ? sender.tab.id : null,
+        },
+        sendResponse,
+      );
     })();
     return true;
   }

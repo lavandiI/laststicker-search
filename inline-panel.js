@@ -168,6 +168,78 @@
     const bytes = await window.InlineStorage.getIndexBytes();
     window.InlineUI.renderIndexSize(bytes);
   }
+
+  function formatAutoTime(timestamp) {
+    if (!timestamp) return '';
+    try {
+      return new Date(timestamp).toLocaleString('ru-RU');
+    } catch {
+      return '';
+    }
+  }
+
+  async function refreshAutoSettingsUI() {
+    const checkbox = document.getElementById('ls-autoEnabled');
+    const status = document.getElementById('ls-autoStatus');
+    if (!checkbox || !status) return;
+
+    const enabled = await window.InlineStorage.loadAutoEnabled();
+    const fullIndex = await window.InlineStorage.ensureFullIndexFlag();
+    const meta = await window.InlineStorage.loadAutoMeta();
+    const hasExtensionRuntime =
+      typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id;
+
+    checkbox.checked = enabled;
+    checkbox.disabled = !fullIndex || !hasExtensionRuntime;
+    status.classList.remove('ls-auto-status--error');
+
+    if (!hasExtensionRuntime) {
+      status.textContent = 'Доступно только в расширении';
+    } else if (!fullIndex) {
+      status.textContent = 'Сначала выполните полную индексацию';
+    } else if (!enabled) {
+      status.textContent = 'Выключено';
+    } else if (meta.lastError) {
+      status.textContent = `Ошибка: ${meta.lastError}`;
+      status.classList.add('ls-auto-status--error');
+    } else if (
+      meta.lastResult &&
+      meta.lastCheck &&
+      (!meta.lastRun || meta.lastCheck > meta.lastRun)
+    ) {
+      status.textContent = meta.lastResult;
+    } else if (meta.lastRun) {
+      status.textContent = `Обновлено: ${formatAutoTime(meta.lastRun)}`;
+    } else if (meta.lastCheck) {
+      status.textContent = `Проверено: ${formatAutoTime(meta.lastCheck)}`;
+    } else {
+      status.textContent = 'Каждые 6 часов, если нет непрочитанных';
+    }
+  }
+
+  async function refreshPanelFromStorage() {
+    const messages = await window.InlineStorage.loadMessages();
+    const stats = window.InlineStorage.getStats(messages);
+    window.InlineUI.renderStats(stats);
+
+    const lastIndexedAt = await window.InlineStorage.loadLastIndexedAt();
+    window.InlineUI.renderLastIndexedAt(lastIndexedAt);
+    await updateIndexSize();
+    await refreshAutoSettingsUI();
+
+    window.InlineUI.hideStaleBanner();
+    maybeShowStaleBanner(lastIndexedAt, stats.messagesCount);
+
+    const searchInput = document.getElementById('ls-searchInput');
+    const query = searchInput ? searchInput.value.trim() : '';
+    if (query) {
+      performSearch(query);
+    } else if (messages.length) {
+      window.InlineUI.renderEmptyState('no-query');
+    } else {
+      window.InlineUI.renderEmptyState('no-index');
+    }
+  }
   
   // Wait for DOM and dependencies
   function init() {
@@ -813,6 +885,7 @@
     const lastIndexedAt = await window.InlineStorage.loadLastIndexedAt();
     window.InlineUI.renderLastIndexedAt(lastIndexedAt);
     await updateIndexSize();
+    await refreshAutoSettingsUI();
 
     const readNoticeSeen = await window.InlineStorage.loadReadNoticeSeen();
     if (!readNoticeSeen) {
@@ -894,6 +967,35 @@
       indexErrors.addEventListener('click', (event) => {
         if (event.target.closest('#ls-retryBtn')) {
           onIndexClick();
+        }
+      });
+    }
+
+    const autoCheckbox = document.getElementById('ls-autoEnabled');
+    if (autoCheckbox) {
+      autoCheckbox.addEventListener('change', async () => {
+        await window.InlineStorage.saveAutoEnabled(autoCheckbox.checked);
+        await refreshAutoSettingsUI();
+      });
+    }
+
+    if (
+      !window._lsStorageChangedListener &&
+      typeof chrome !== 'undefined' &&
+      chrome.storage &&
+      chrome.storage.onChanged
+    ) {
+      window._lsStorageChangedListener = true;
+      chrome.storage.onChanged.addListener((changes, area) => {
+        if (area !== 'local') return;
+        if (
+          changes.ls_search_messages ||
+          changes.ls_search_last_indexed_at ||
+          changes.ls_search_full_index_at ||
+          changes.ls_search_auto_enabled ||
+          changes.ls_search_auto_meta
+        ) {
+          refreshPanelFromStorage();
         }
       });
     }
@@ -1059,6 +1161,69 @@
               return;
             }
             
+            if (response && response.result) {
+              const result = response.result;
+              const messages = await window.InlineStorage.loadMessages();
+              const stats = window.InlineStorage.getStats(messages);
+              const indexedAt =
+                result.indexedAt || (await window.InlineStorage.loadLastIndexedAt());
+
+              window.InlineUI.renderStats(stats);
+              window.InlineUI.renderLastIndexedAt(indexedAt);
+              await updateIndexSize();
+              await refreshAutoSettingsUI();
+
+              const errors = Array.isArray(result.errors) ? result.errors : [];
+              if (errors.length > 0) {
+                window.InlineUI.renderIndexErrors(errors);
+              } else {
+                window.InlineUI.clearIndexErrors();
+              }
+
+              if (result.skipped) {
+                window.InlineUI.showStatus(
+                  result.reason || 'Автообновление пропущено',
+                  'success',
+                );
+              } else if (result.cancelled) {
+                window.InlineUI.showStatus(
+                  `Индексация остановлена. Добавлено ${result.addedCount || 0} сообщений`,
+                  'success',
+                );
+              } else if (errors.length > 0) {
+                window.InlineUI.showStatus(
+                  `Готово, но ${errors.length} ошибок. Добавлено ${
+                    result.addedCount || 0
+                  } сообщений`,
+                  'error',
+                );
+              } else if (result.addedCount > 0) {
+                window.InlineUI.showStatus(
+                  `Добавлено ${result.addedCount} сообщений; пропущено ${
+                    result.skippedTalks || 0
+                  } без изменений`,
+                  'success',
+                );
+              } else if (result.skippedTalks > 0) {
+                window.InlineUI.showStatus(
+                  `Всё актуально: пропущено ${result.skippedTalks} диалогов без изменений`,
+                  'success',
+                );
+              } else {
+                window.InlineUI.showStatus('Новых сообщений не найдено', 'success');
+              }
+
+              const searchInput = document.getElementById('ls-searchInput');
+              if (searchInput && searchInput.value.trim()) {
+                performSearch(searchInput.value.trim());
+              } else {
+                window.InlineUI.renderEmptyState('no-query');
+              }
+
+              resolve();
+              return;
+            }
+
             if (response && Array.isArray(response.messages)) {
               const newMessages = response.messages;
               const indexedSections = response.indexedSections || [];
@@ -1176,6 +1341,7 @@
       window.InlineUI.hideStaleBanner();
       lastMainSearch = { query: '', results: [], limit: 200 };
       if (mainKeyboard) mainKeyboard.reset();
+      await refreshAutoSettingsUI();
       
       const searchInput = document.getElementById('ls-searchInput');
       if (searchInput) {

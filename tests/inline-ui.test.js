@@ -27,6 +27,8 @@ describe('inline-ui filters and result links', () => {
     expect(document.getElementById('ls-staleBanner')).toBeTruthy();
     expect(document.getElementById('ls-readNotice')).toBeTruthy();
     expect(document.getElementById('ls-indexErrors')).toBeTruthy();
+    expect(document.getElementById('ls-autoEnabled')).toBeTruthy();
+    expect(document.getElementById('ls-autoStatus')).toBeTruthy();
   });
 
   test('formats the index size and warns near the quota', () => {

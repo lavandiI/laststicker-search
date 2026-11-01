@@ -12,7 +12,12 @@ describe('manifest', () => {
   });
 
   test('keeps only the permissions justified in the privacy policy', () => {
-    expect(manifest.permissions.sort()).toEqual(['scripting', 'storage']);
+    expect(manifest.permissions.sort()).toEqual([
+      'alarms',
+      'offscreen',
+      'scripting',
+      'storage',
+    ]);
   });
 
   test('version matches package.json', () => {

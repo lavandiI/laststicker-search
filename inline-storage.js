@@ -6,6 +6,9 @@ const LS_KEY_LAST_QUERY = 'ls_search_last_query';
 const LS_KEY_LAST_INDEXED_AT = 'ls_search_last_indexed_at';
 const LS_KEY_MIGRATED = 'ls_search_storage_migrated';
 const LS_KEY_READ_NOTICE_SEEN = 'ls_search_read_notice_seen';
+const LS_KEY_FULL_INDEX_AT = 'ls_search_full_index_at';
+const LS_KEY_AUTO_ENABLED = 'ls_search_auto_enabled';
+const LS_KEY_AUTO_META = 'ls_search_auto_meta';
 
 const hasChromeStorage =
   typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local;
@@ -38,6 +41,16 @@ function removeLegacyLocalKeys() {
 
 async function migrateFromLocalStorage() {
   if (!hasChromeStorage) return;
+
+  // Offscreen documents have their own localStorage. Never mark migration as
+  // complete there: the site page still owns the legacy data.
+  if (
+    typeof window !== 'undefined' &&
+    window.location &&
+    window.location.protocol === 'chrome-extension:'
+  ) {
+    return;
+  }
 
   try {
     const current = await chrome.storage.local.get([LS_KEY_MESSAGES, LS_KEY_MIGRATED]);
@@ -172,6 +185,8 @@ async function clearMessages() {
   await storageRemove(LS_KEY_MESSAGES);
   await storageRemove(LS_KEY_LAST_QUERY);
   await storageRemove(LS_KEY_LAST_INDEXED_AT);
+  await storageRemove(LS_KEY_FULL_INDEX_AT);
+  await storageRemove(LS_KEY_AUTO_META);
 }
 
 /**
@@ -256,6 +271,84 @@ async function getIndexBytes() {
   } catch {
     return raw.length;
   }
+}
+
+/**
+ * Timestamp of the last complete index, or null.
+ * @returns {Promise<number|null>}
+ */
+async function loadFullIndexAt() {
+  const value = await storageGet(LS_KEY_FULL_INDEX_AT);
+  if (!value) return null;
+
+  const num = parseInt(value, 10);
+  return Number.isNaN(num) ? null : num;
+}
+
+/**
+ * Mark the index as complete.
+ * @param {number} [timestamp]
+ */
+async function saveFullIndexAt(timestamp = Date.now()) {
+  await storageSet(LS_KEY_FULL_INDEX_AT, String(timestamp));
+}
+
+/**
+ * Existing users already have an index but no full-index flag. Treat a
+ * non-empty index with a lastIndexedAt timestamp as complete.
+ * @returns {Promise<boolean>}
+ */
+async function ensureFullIndexFlag() {
+  const existing = await loadFullIndexAt();
+  if (existing) return true;
+
+  const lastIndexedAt = await loadLastIndexedAt();
+  if (!lastIndexedAt) return false;
+
+  const messages = await loadMessages();
+  if (!messages.length) return false;
+
+  await saveFullIndexAt(lastIndexedAt);
+  return true;
+}
+
+/**
+ * Automatic refresh is enabled by default once a full index exists.
+ * @returns {Promise<boolean>}
+ */
+async function loadAutoEnabled() {
+  const value = await storageGet(LS_KEY_AUTO_ENABLED);
+  if (value === null || value === undefined || value === '') return true;
+  return value === '1' || value === true;
+}
+
+/**
+ * @param {boolean} enabled
+ */
+async function saveAutoEnabled(enabled) {
+  await storageSet(LS_KEY_AUTO_ENABLED, enabled ? '1' : '0');
+}
+
+/**
+ * @returns {Promise<{lastRun?: number, lastCheck?: number, lastError?: string, lastResult?: string}>}
+ */
+async function loadAutoMeta() {
+  const raw = await storageGet(LS_KEY_AUTO_META);
+  if (!raw) return {};
+
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * @param {object} meta
+ */
+async function saveAutoMeta(meta) {
+  await storageSet(LS_KEY_AUTO_META, JSON.stringify(meta || {}));
 }
 
 /**
@@ -395,6 +488,13 @@ if (typeof window !== 'undefined') {
     loadLastIndexedAt,
     loadReadNoticeSeen,
     saveReadNoticeSeen,
+    loadFullIndexAt,
+    saveFullIndexAt,
+    ensureFullIndexFlag,
+    loadAutoEnabled,
+    saveAutoEnabled,
+    loadAutoMeta,
+    saveAutoMeta,
     getIndexBytes,
     buildMessageKey,
     buildLegacyMessageKey,
@@ -414,6 +514,13 @@ if (typeof module !== 'undefined' && module.exports) {
     loadLastIndexedAt,
     loadReadNoticeSeen,
     saveReadNoticeSeen,
+    loadFullIndexAt,
+    saveFullIndexAt,
+    ensureFullIndexFlag,
+    loadAutoEnabled,
+    saveAutoEnabled,
+    loadAutoMeta,
+    saveAutoMeta,
     getIndexBytes,
     buildMessageKey,
     buildLegacyMessageKey,

@@ -276,6 +276,18 @@ function createSearchPanel() {
   controls.appendChild(stats);
   controls.appendChild(lastIndexed);
 
+  // Automatic refresh settings
+  const autoSettings = document.createElement('div');
+  autoSettings.id = 'ls-autoSettings';
+  autoSettings.className = 'ls-auto-settings';
+  autoSettings.innerHTML = `
+    <label class="ls-auto-toggle">
+      <input type="checkbox" id="ls-autoEnabled">
+      <span>Автообновление</span>
+    </label>
+    <span id="ls-autoStatus" class="ls-auto-status"></span>
+  `;
+
   // Stale index banner
   const staleBanner = document.createElement('div');
   staleBanner.id = 'ls-staleBanner';
@@ -341,6 +353,7 @@ function createSearchPanel() {
   
   // Add all to panel
   panel.appendChild(controls);
+  panel.appendChild(autoSettings);
   panel.appendChild(staleBanner);
   panel.appendChild(readNotice);
   panel.appendChild(indexErrors);

@@ -23,6 +23,10 @@ Effective date / Дата вступления в силу: 2026-11-01
 
 Только для отображения статистики, поиска по сообщениям и перехода к найденному сообщению. Данные не продаются, не передаются и не используются для рекламы.
 
+### Автообновление
+
+Автообновление включено по умолчанию. Если оно включено, расширение раз в 6 часов проверяет список диалогов и обновляет локальный индекс. Автообновление пропускается, если в аккаунте есть непрочитанные сообщения или ещё не был выполнен полный индекс. Автообновление не работает, когда браузер закрыт. Его можно отключить в панели расширения.
+
 ### Доступ к сайту
 
 Расширение работает только на `laststicker.ru` и `www.laststicker.ru`. Оно читает страницы диалогов, которые пользователь и так может открыть в своём аккаунте. Расширение не обходит авторизацию и не получает доступ к чужим аккаунтам.
@@ -31,6 +35,8 @@ Effective date / Дата вступления в силу: 2026-11-01
 
 - `storage` — локальное хранение индекса;
 - `scripting` — внедрение панели поиска и парсера на страницы `laststicker.ru`;
+- `offscreen` — локальный парсинг HTML без открытой вкладки;
+- `alarms` — периодическая проверка автообновления;
 - host permissions — доступ только к `laststicker.ru` и `www.laststicker.ru`.
 
 Расширение не запрашивает доступ к истории просмотров и не читает вкладки других сайтов.
@@ -72,6 +78,10 @@ Data is stored only locally in the user's browser in `chrome.storage.local`. Whe
 
 Only to show statistics, search messages, and navigate to a found message. Data is not sold, shared, or used for advertising.
 
+### Automatic refresh
+
+Automatic refresh is enabled by default. When enabled, the extension checks the dialog list and updates the local index every 6 hours. It is skipped when the account has unread messages or when a complete index has not been built yet. It does not run while the browser is closed. It can be disabled in the extension panel.
+
 ### Site access
 
 The extension works only on `laststicker.ru` and `www.laststicker.ru`. It reads dialog pages that the user can already open in their own account. It does not bypass authentication or access other users' accounts.
@@ -80,6 +90,8 @@ The extension works only on `laststicker.ru` and `www.laststicker.ru`. It reads 
 
 - `storage` - local storage of the index;
 - `scripting` - inject the search panel and parser into `laststicker.ru` pages;
+- `offscreen` - local HTML parsing without an open tab;
+- `alarms` - periodic automatic refresh;
 - host permissions - access only `laststicker.ru` and `www.laststicker.ru`.
 
 The extension does not request access to browsing history and does not read tabs on other sites.

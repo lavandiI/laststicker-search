@@ -18,6 +18,9 @@ module.exports = [
         ...globals.node,
         ...globals.jest,
         importScripts: 'readonly',
+        LSFetch: 'readonly',
+        LSParser: 'readonly',
+        InlineStorage: 'readonly',
       },
     },
     rules: {
