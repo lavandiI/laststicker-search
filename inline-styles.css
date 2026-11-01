@@ -780,8 +780,3 @@ html[data-ls-theme='dark'][data-ls-scope='site'] .ls-message-target {
 html[data-ls-theme='dark'][data-ls-scope='site'] .ls-message-target > div {
   background-color: var(--ls-yellow-bg, rgba(255, 215, 94, 0.18)) !important;
 }
-
-html[data-ls-theme='dark'][data-ls-scope='panel'] .ls-search-panel,
-html[data-ls-theme='dark'][data-ls-scope='panel'] .ls-talk-search-panel {
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.28);
-}

@@ -27,6 +27,7 @@ npm run package
 - ZIP содержит `manifest.json` в корне, а не во вложенной папке;
 - внутри есть `theme.css`, `theme.js`, `theme-core.js`, `theme-store.js`, `popup.html`, `popup.css`, `popup.js`;
 - в `manifest.json` есть `action.default_popup` и content script темы на `document_start`;
+- popup содержит переключатель темы и не содержит выбора области «сайт/панели»;
 - новых разрешений нет: `storage`, `scripting`, `offscreen`, `alarms`, host permissions.
 
 ## 2. Публичный URL политики

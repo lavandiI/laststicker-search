@@ -7,32 +7,23 @@
   const store = globalThis.LSThemeStore;
   if (!core || !store) return;
 
-  const media =
-    typeof window.matchMedia === 'function'
-      ? window.matchMedia('(prefers-color-scheme: dark)')
-      : null;
-
-  let currentTheme = core.normalizeTheme(null);
   let started = false;
-
-  function systemDark() {
-    return Boolean(media && media.matches);
-  }
 
   function apply(theme, options) {
     const settings = options || {};
     const normalized = core.normalizeTheme(theme);
-    const resolved = core.resolveTheme(normalized, systemDark());
+    const resolved = core.resolveTheme(normalized);
     const root = document.documentElement;
 
     if (!root) return;
 
     root.dataset.lsTheme = resolved;
     root.dataset.lsPalette = normalized.palette;
-    root.dataset.lsScope = normalized.scope;
     root.dataset.lsImages = normalized.images;
 
-    currentTheme = normalized;
+    // There is no panel-only mode. The constant scope attribute is kept
+    // because theme.css uses it to raise specificity over the site styles.
+    root.dataset.lsScope = 'site';
 
     if (settings.cache !== false) {
       store.writeThemeCache(normalized, resolved);
@@ -73,20 +64,6 @@
     store.onThemeChanged(function (theme) {
       applyWhenReady(theme);
     });
-
-    if (media) {
-      const onSystemChange = function () {
-        if (currentTheme.mode === 'system') {
-          applyWhenReady(currentTheme, { cache: false });
-        }
-      };
-
-      if (typeof media.addEventListener === 'function') {
-        media.addEventListener('change', onSystemChange);
-      } else if (typeof media.addListener === 'function') {
-        media.addListener(onSystemChange);
-      }
-    }
   }
 
   start();

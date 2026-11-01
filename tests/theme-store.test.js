@@ -52,20 +52,19 @@ describe('theme store', () => {
 
   test('normalizes invalid stored values', async () => {
     global.chrome = createChromeMock({
-      [core.THEME_KEY]: { mode: 'sepia', palette: 'purple' },
+      [core.THEME_KEY]: { enabled: 'yes', palette: 'purple' },
     });
 
     const theme = await store.loadTheme();
-    expect(theme.mode).toBe('light');
+    expect(theme.enabled).toBe(false);
     expect(theme.palette).toBe('graphite');
   });
 
   test('saves a partial update and keeps the other settings', async () => {
     const chromeMock = createChromeMock({
       [core.THEME_KEY]: {
-        mode: 'dark',
+        enabled: true,
         palette: 'graphite',
-        scope: 'site',
         images: 'off',
       },
     });
@@ -73,18 +72,18 @@ describe('theme store', () => {
 
     const next = await store.saveTheme({ palette: 'black' });
 
-    expect(next.mode).toBe('dark');
+    expect(next.enabled).toBe(true);
     expect(next.palette).toBe('black');
     expect(chromeMock.data[core.THEME_KEY]).toEqual(next);
   });
 
   test('falls back to localStorage without chrome.storage', async () => {
-    await store.saveTheme({ mode: 'dark', scope: 'panel' });
+    await store.saveTheme({ enabled: true, palette: 'black' });
 
     const theme = await store.loadTheme();
-    expect(theme.mode).toBe('dark');
-    expect(theme.scope).toBe('panel');
-    expect(JSON.parse(localStorage.getItem(core.THEME_KEY)).mode).toBe('dark');
+    expect(theme.enabled).toBe(true);
+    expect(theme.palette).toBe('black');
+    expect(JSON.parse(localStorage.getItem(core.THEME_KEY)).enabled).toBe(true);
   });
 
   test('notifies about theme changes only', () => {
@@ -96,29 +95,29 @@ describe('theme store', () => {
 
     chromeMock.emit({ another_key: { newValue: true } });
     chromeMock.emit({
-      [core.THEME_KEY]: { newValue: { mode: 'dark' } },
+      [core.THEME_KEY]: { newValue: { enabled: true } },
     });
 
     expect(callback).toHaveBeenCalledTimes(1);
-    expect(callback.mock.calls[0][0].mode).toBe('dark');
+    expect(callback.mock.calls[0][0].enabled).toBe(true);
 
     unsubscribe();
     expect(chromeMock.listeners).toHaveLength(0);
   });
 
   test('writes and reads the synchronous cache', () => {
-    store.writeThemeCache({ mode: 'dark', palette: 'black' }, 'dark');
+    store.writeThemeCache({ enabled: true, palette: 'black' }, 'dark');
 
     const cached = store.readThemeCache();
     expect(cached.resolved).toBe('dark');
-    expect(cached.theme.mode).toBe('dark');
+    expect(cached.theme.enabled).toBe(true);
     expect(cached.theme.palette).toBe('black');
   });
 
   test('ignores cache entries without a valid resolved theme', () => {
     localStorage.setItem(
       core.THEME_CACHE_KEY,
-      JSON.stringify({ theme: { mode: 'dark' }, resolved: 'sepia' }),
+      JSON.stringify({ theme: { enabled: true }, resolved: 'sepia' }),
     );
 
     expect(store.readThemeCache()).toBeNull();

@@ -14,16 +14,13 @@
   const THEME_CACHE_KEY = 'ls_search_theme_cache';
   const THEME_VERSION = 1;
 
-  const MODES = ['light', 'dark', 'system'];
   const PALETTES = ['graphite', 'black'];
-  const SCOPES = ['site', 'panel'];
   const IMAGE_LEVELS = ['off', 'soft', 'strong'];
 
   const DEFAULT_THEME = Object.freeze({
     version: THEME_VERSION,
-    mode: 'light',
+    enabled: false,
     palette: 'graphite',
-    scope: 'site',
     images: 'off',
   });
 
@@ -34,29 +31,28 @@
   function normalizeTheme(input) {
     const source = input && typeof input === 'object' ? input : {};
 
+    // Older development builds used mode: 'light' | 'dark' | 'system'.
+    // Dark maps to enabled, light/system map to disabled.
+    const enabled = typeof source.enabled === 'boolean' ? source.enabled : source.mode === 'dark';
+
     return {
       version: THEME_VERSION,
-      mode: oneOf(source.mode, MODES, DEFAULT_THEME.mode),
+      enabled,
       palette: oneOf(source.palette, PALETTES, DEFAULT_THEME.palette),
-      scope: oneOf(source.scope, SCOPES, DEFAULT_THEME.scope),
       images: oneOf(source.images, IMAGE_LEVELS, DEFAULT_THEME.images),
     };
   }
 
-  function resolveTheme(theme, systemDark) {
-    const normalized = normalizeTheme(theme);
-    if (normalized.mode === 'dark') return 'dark';
-    if (normalized.mode === 'light') return 'light';
-    return systemDark ? 'dark' : 'light';
+  function resolveTheme(theme) {
+    return normalizeTheme(theme).enabled ? 'dark' : 'light';
   }
 
-  function themeDataset(theme, systemDark) {
+  function themeDataset(theme) {
     const normalized = normalizeTheme(theme);
 
     return {
-      lsTheme: resolveTheme(normalized, systemDark),
+      lsTheme: resolveTheme(normalized),
       lsPalette: normalized.palette,
-      lsScope: normalized.scope,
       lsImages: normalized.images,
     };
   }
@@ -66,9 +62,7 @@
     THEME_CACHE_KEY,
     THEME_VERSION,
     DEFAULT_THEME,
-    MODES,
     PALETTES,
-    SCOPES,
     IMAGE_LEVELS,
     normalizeTheme,
     resolveTheme,

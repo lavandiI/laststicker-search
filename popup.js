@@ -9,33 +9,12 @@
 
   if (!core || !store) return;
 
-  const media =
-    typeof root.matchMedia === 'function' ? root.matchMedia('(prefers-color-scheme: dark)') : null;
-
   let current = core.normalizeTheme(null);
   let saveTimer = null;
   let saveQueue = Promise.resolve();
 
-  function systemDark() {
-    return Boolean(media && media.matches);
-  }
-
   function byId(doc, id) {
     return doc.getElementById(id);
-  }
-
-  function readForm(doc) {
-    const mode = doc.querySelector('input[name="mode"]:checked');
-    const palette = doc.querySelector('input[name="palette"]:checked');
-    const scope = doc.querySelector('input[name="scope"]:checked');
-    const images = byId(doc, 'images');
-
-    return core.normalizeTheme({
-      mode: mode ? mode.value : undefined,
-      palette: palette ? palette.value : undefined,
-      scope: scope ? scope.value : undefined,
-      images: images ? images.value : undefined,
-    });
   }
 
   function setChecked(doc, name, value) {
@@ -46,21 +25,28 @@
   function render(doc, theme) {
     current = core.normalizeTheme(theme);
 
-    setChecked(doc, 'mode', current.mode);
+    const toggle = byId(doc, 'themeEnabled');
+    if (toggle) toggle.checked = current.enabled;
+
+    const state = byId(doc, 'themeState');
+    if (state) {
+      state.textContent = current.enabled ? 'Включена' : 'Выключена';
+      state.classList.toggle('is-on', current.enabled);
+    }
+
     setChecked(doc, 'palette', current.palette);
-    setChecked(doc, 'scope', current.scope);
 
     const images = byId(doc, 'images');
     if (images) images.value = current.images;
 
-    const resolved = core.resolveTheme(current, systemDark());
+    const resolved = core.resolveTheme(current);
     const rootEl = doc.documentElement;
     rootEl.dataset.lsTheme = resolved;
     rootEl.dataset.lsPalette = current.palette;
 
     const site = byId(doc, 'previewSite');
     if (site) {
-      site.classList.toggle('is-dark', resolved === 'dark' && current.scope === 'site');
+      site.classList.toggle('is-dark', resolved === 'dark');
       site.dataset.images = current.images;
     }
 
@@ -129,8 +115,13 @@
       const target = event.target;
       if (!target) return;
 
-      if (target.name === 'mode' || target.name === 'palette' || target.name === 'scope') {
-        update(document, readForm(document));
+      if (target.id === 'themeEnabled') {
+        update(document, { enabled: target.checked });
+        return;
+      }
+
+      if (target.name === 'palette') {
+        update(document, { palette: target.value });
         return;
       }
 
@@ -150,24 +141,10 @@
       render(document, theme);
     });
 
-    if (media) {
-      const onSystemChange = function () {
-        if (current.mode === 'system') {
-          render(document, current);
-        }
-      };
-
-      if (typeof media.addEventListener === 'function') {
-        media.addEventListener('change', onSystemChange);
-      } else if (typeof media.addListener === 'function') {
-        media.addListener(onSystemChange);
-      }
-    }
-
-    return { render, readForm };
+    return { render };
   }
 
-  root.LSPopup = { initPopup, readForm, render };
+  root.LSPopup = { initPopup, render };
 
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = root.LSPopup;

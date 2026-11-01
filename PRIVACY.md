@@ -15,7 +15,7 @@ Effective date / Дата вступления в силу: 2026-11-01
 - URL страниц диалогов и тем;
 - названия тем, категории и метки форума;
 - последний поисковый запрос и время индексации;
-- настройки оформления: тема, палитра, область применения и приглушение изображений.
+- настройки оформления: тема, палитра и приглушение изображений.
 
 Комментарии форума — публичный контент сайта. Расширение сохраняет их локально только для поиска и не публикует новые данные.
 
@@ -82,7 +82,7 @@ Effective date / Дата вступления в силу: 2026-11-01
 - dialog and topic page URLs;
 - topic titles, categories, and forum tags;
 - the last search query and the last indexing time;
-- appearance settings: theme, palette, scope, and image dimming.
+- appearance settings: theme, palette, and image dimming.
 
 Forum comments are public site content. The extension stores them locally only for search and does not publish new data.
 

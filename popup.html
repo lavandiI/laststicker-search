@@ -17,23 +17,19 @@
     </header>
 
     <main class="ls-popup-main">
-      <fieldset class="ls-field">
-        <legend>Тема</legend>
-        <div class="ls-segmented">
-          <label>
-            <input type="radio" name="mode" value="light" />
-            <span>Светлая</span>
-          </label>
-          <label>
-            <input type="radio" name="mode" value="dark" />
-            <span>Тёмная</span>
-          </label>
-          <label>
-            <input type="radio" name="mode" value="system" />
-            <span>Как в системе</span>
-          </label>
+      <section class="ls-switch-row" aria-labelledby="themeSwitchTitle">
+        <div class="ls-switch-copy">
+          <span class="ls-switch-title" id="themeSwitchTitle">Тёмная тема</span>
+          <span class="ls-switch-hint">Весь сайт и панели поиска</span>
         </div>
-      </fieldset>
+        <span class="ls-switch-state" id="themeState" aria-live="polite">Выключена</span>
+        <label class="ls-switch">
+          <input type="checkbox" id="themeEnabled" role="switch" aria-label="Тёмная тема" />
+          <span class="ls-switch-track" aria-hidden="true">
+            <span class="ls-switch-thumb"></span>
+          </span>
+        </label>
+      </section>
 
       <fieldset class="ls-field">
         <legend>Палитра</legend>
@@ -56,26 +52,6 @@
                 <b>Чёрная</b>
                 <small>Для OLED и ночи</small>
               </span>
-            </span>
-          </label>
-        </div>
-      </fieldset>
-
-      <fieldset class="ls-field">
-        <legend>Применять</legend>
-        <div class="ls-radio-stack">
-          <label class="ls-radio-row">
-            <input type="radio" name="scope" value="site" />
-            <span>
-              <b>Весь сайт</b>
-              <small>Тёмное оформление laststicker.ru и панелей поиска.</small>
-            </span>
-          </label>
-          <label class="ls-radio-row">
-            <input type="radio" name="scope" value="panel" />
-            <span>
-              <b>Только панели поиска</b>
-              <small>Сайт остаётся светлым.</small>
             </span>
           </label>
         </div>

@@ -30,25 +30,6 @@ function createChromeMock(initial = {}) {
   };
 }
 
-function createMedia(initial) {
-  let matches = initial;
-  const listeners = [];
-
-  return {
-    get matches() {
-      return matches;
-    },
-    addEventListener(type, listener) {
-      if (type === 'change') listeners.push(listener);
-    },
-    removeEventListener() {},
-    emit(next) {
-      matches = next;
-      listeners.slice().forEach((listener) => listener({ matches }));
-    },
-  };
-}
-
 async function flush() {
   await Promise.resolve();
   await Promise.resolve();
@@ -74,7 +55,6 @@ describe('theme boot', () => {
     document.documentElement.removeAttribute('data-ls-palette');
     document.documentElement.removeAttribute('data-ls-scope');
     document.documentElement.removeAttribute('data-ls-images');
-    window.matchMedia = () => createMedia(false);
   });
 
   afterEach(() => {
@@ -84,17 +64,14 @@ describe('theme boot', () => {
 
   test('applies the synchronous cache before storage resolves', async () => {
     const store = require('../theme-store.js');
-    store.writeThemeCache(
-      { mode: 'dark', palette: 'black', scope: 'panel', images: 'soft' },
-      'dark',
-    );
+    store.writeThemeCache({ enabled: true, palette: 'black', images: 'soft' }, 'dark');
 
     global.chrome = createChromeMock();
     loadThemeScript();
 
     expect(document.documentElement.dataset.lsTheme).toBe('dark');
     expect(document.documentElement.dataset.lsPalette).toBe('black');
-    expect(document.documentElement.dataset.lsScope).toBe('panel');
+    expect(document.documentElement.dataset.lsScope).toBe('site');
     expect(document.documentElement.dataset.lsImages).toBe('soft');
 
     await flush();
@@ -103,9 +80,8 @@ describe('theme boot', () => {
   test('applies chrome.storage.local after the cache check', async () => {
     global.chrome = createChromeMock({
       ls_search_theme: {
-        mode: 'dark',
+        enabled: true,
         palette: 'graphite',
-        scope: 'site',
         images: 'off',
       },
     });
@@ -128,31 +104,23 @@ describe('theme boot', () => {
 
     chromeMock.emit({
       ls_search_theme: {
-        newValue: { mode: 'dark', scope: 'panel', images: 'strong' },
+        newValue: { enabled: true, images: 'strong' },
       },
     });
 
     expect(document.documentElement.dataset.lsTheme).toBe('dark');
-    expect(document.documentElement.dataset.lsScope).toBe('panel');
+    expect(document.documentElement.dataset.lsScope).toBe('site');
     expect(document.documentElement.dataset.lsImages).toBe('strong');
   });
 
-  test('follows the system theme in system mode', async () => {
-    const media = createMedia(false);
-    window.matchMedia = () => media;
-
+  test('keeps the site light when the switch is off', async () => {
     global.chrome = createChromeMock({
-      ls_search_theme: { mode: 'system' },
+      ls_search_theme: { enabled: false },
     });
     loadThemeScript();
     await flush();
 
     expect(document.documentElement.dataset.lsTheme).toBe('light');
-
-    media.emit(true);
-    expect(document.documentElement.dataset.lsTheme).toBe('dark');
-
-    media.emit(false);
-    expect(document.documentElement.dataset.lsTheme).toBe('light');
+    expect(document.documentElement.dataset.lsScope).toBe('site');
   });
 });
