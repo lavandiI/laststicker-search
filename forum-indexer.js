@@ -184,25 +184,19 @@
           lastPageParam === 0
             ? baseDoc
             : parseHtml(await fetchText(buildPageUrl(postId, lastPageParam)));
-        const lastPageComments =
-          LSForumParser.extractForumCommentsFromDocument(lastPageDoc, {
-            postId,
-            topicTitle: meta.title,
-            category: meta.category,
-            categoryPath: meta.categoryPath,
-            page: lastPageParam + 1,
-          });
+        const lastPageComments = LSForumParser.extractForumCommentsFromDocument(lastPageDoc, {
+          postId,
+          topicTitle: meta.title,
+          category: meta.category,
+          categoryPath: meta.categoryPath,
+          page: lastPageParam + 1,
+        });
         const lastId = lastPageComments.length
           ? String(lastPageComments[lastPageComments.length - 1].commentId)
           : '';
 
         if (lastId === String(existing.lastCommentId || '')) {
-          reportProgress(
-            totalPages,
-            totalPages,
-            messageCount,
-            totalPages,
-          );
+          reportProgress(totalPages, totalPages, messageCount, totalPages);
           return {
             jobId: job.jobId,
             postId,
@@ -223,9 +217,7 @@
           comments: lastPageComments,
         };
       } catch (e) {
-        errors.push(
-          `Тема ${postId}, страница ${lastPageParam + 1}: ${e.message}`,
-        );
+        errors.push(`Тема ${postId}, страница ${lastPageParam + 1}: ${e.message}`);
       }
     }
 
@@ -243,10 +235,7 @@
       }
 
       let comments;
-      if (
-        preloadedLastPage &&
-        preloadedLastPage.pageParam === pageParam
-      ) {
+      if (preloadedLastPage && preloadedLastPage.pageParam === pageParam) {
         comments = preloadedLastPage.comments;
       } else {
         let pageDoc;
@@ -257,9 +246,7 @@
             const html = await fetchText(buildPageUrl(postId, pageParam));
             pageDoc = parseHtml(html);
           } catch (e) {
-            errors.push(
-              `Тема ${postId}, страница ${pageParam + 1}: ${e.message}`,
-            );
+            errors.push(`Тема ${postId}, страница ${pageParam + 1}: ${e.message}`);
             break;
           }
         }
@@ -274,14 +261,9 @@
       }
 
       let commentsToWrite = comments;
-      if (
-        pageParam === startPageParam &&
-        existing &&
-        existing.lastCommentId
-      ) {
+      if (pageParam === startPageParam && existing && existing.lastCommentId) {
         const previousLastIndex = comments.findIndex(
-          (comment) =>
-            String(comment.commentId) === String(existing.lastCommentId),
+          (comment) => String(comment.commentId) === String(existing.lastCommentId),
         );
         if (previousLastIndex >= 0) {
           commentsToWrite = comments.slice(previousLastIndex + 1);
@@ -300,9 +282,7 @@
       }
 
       if (comments.length > 0) {
-        lastCommentId = String(
-          comments[comments.length - 1].commentId || '',
-        );
+        lastCommentId = String(comments[comments.length - 1].commentId || '');
       }
 
       lastCompletePageParam = pageParam;
@@ -317,6 +297,7 @@
     if (cancelled) {
       // Save the partial state so a later update can continue.
       const indexedComments = await LSForumStorage.countCommentsByPost(postId);
+      const sizeBytes = await LSForumStorage.getTopicSize(postId);
       await LSForumStorage.putTopic(
         {
           postId,
@@ -333,6 +314,7 @@
           lastCompletePageParam,
           lastCommentId,
           indexedComments,
+          sizeBytes,
           complete: false,
           partial: true,
           indexedAt: Date.now(),
@@ -356,6 +338,7 @@
     }
 
     const indexedComments = await LSForumStorage.countCommentsByPost(postId);
+    const sizeBytes = await LSForumStorage.getTopicSize(postId);
     const complete = errors.length === 0 && lastCompletePageParam >= lastPageParam;
     const now = Date.now();
 
@@ -375,6 +358,7 @@
         lastCompletePageParam,
         lastCommentId,
         indexedComments,
+        sizeBytes,
         complete,
         partial: !complete,
         indexedAt: now,

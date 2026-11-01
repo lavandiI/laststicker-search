@@ -103,6 +103,7 @@ describe('forum storage', () => {
       indexedComments: 2,
       complete: true,
     });
+    expect(stats.sizeBytes).toBeGreaterThan(0);
   });
 
   test('bumps generation without deleting existing comments', async () => {
@@ -121,6 +122,7 @@ describe('forum storage', () => {
 
     expect(await storage.getGeneration()).toBe(1);
     expect(await storage.countComments()).toBe(0);
+    expect((await storage.getStats('')).sizeBytes).toBe(0);
 
     await expect(storage.putComments([comment()], 0)).rejects.toThrow('очищен');
     expect(await storage.countComments()).toBe(0);

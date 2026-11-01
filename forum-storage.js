@@ -288,6 +288,59 @@
     });
   }
 
+  function estimateCommentBytes(comment) {
+    try {
+      return JSON.stringify(comment).length + 64;
+    } catch {
+      return 256;
+    }
+  }
+
+  async function getTopicSize(postId) {
+    if (!postId) return 0;
+    const db = await openDb();
+
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_COMMENTS, 'readonly');
+      const index = tx.objectStore(STORE_COMMENTS).index('postId');
+      let total = 0;
+      const request = index.openCursor(IDBKeyRange.only(String(postId)));
+
+      request.onsuccess = () => {
+        const cursor = request.result;
+        if (!cursor) return;
+        total += estimateCommentBytes(cursor.value);
+        cursor.continue();
+      };
+      request.onerror = () => reject(request.error);
+      tx.oncomplete = () => resolve(total);
+      tx.onerror = () => reject(tx.error || new Error('Ошибка IndexedDB'));
+      tx.onabort = () => reject(tx.error || new Error('Транзакция отменена'));
+    });
+  }
+
+  async function getLogicalSize() {
+    const db = await openDb();
+
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_COMMENTS, 'readonly');
+      const store = tx.objectStore(STORE_COMMENTS);
+      let total = 0;
+      const request = store.openCursor();
+
+      request.onsuccess = () => {
+        const cursor = request.result;
+        if (!cursor) return;
+        total += estimateCommentBytes(cursor.value);
+        cursor.continue();
+      };
+      request.onerror = () => reject(request.error);
+      tx.oncomplete = () => resolve(total);
+      tx.onerror = () => reject(tx.error || new Error('Ошибка IndexedDB'));
+      tx.onabort = () => reject(tx.error || new Error('Транзакция отменена'));
+    });
+  }
+
   async function deleteTopic(postId) {
     if (!postId) return false;
     const db = await openDb();
@@ -457,24 +510,23 @@
         topic = {
           ...topic,
           indexedComments: await countCommentsByPost(postId),
+          sizeBytes: Number.isFinite(Number(topic.sizeBytes))
+            ? Number(topic.sizeBytes)
+            : await getTopicSize(postId),
         };
       }
     }
 
-    let sizeBytes = null;
-    let quotaBytes = null;
-    try {
-      if (
-        typeof navigator !== 'undefined' &&
-        navigator.storage &&
-        typeof navigator.storage.estimate === 'function'
-      ) {
-        const estimate = await navigator.storage.estimate();
-        sizeBytes = Number(estimate.usage) || 0;
-        quotaBytes = Number(estimate.quota) || null;
-      }
-    } catch {
-      // Storage estimates are best-effort.
+    // Show the logical size of the forum index, not the physical size of the
+    // IndexedDB file. The latter does not shrink immediately after clear and
+    // includes the browser's internal write-ahead/compaction overhead.
+    const topics = await getAllTopics();
+    const sizesKnown = topics.every((item) => Number.isFinite(Number(item.sizeBytes)));
+    let sizeBytes = 0;
+    if (sizesKnown) {
+      sizeBytes = topics.reduce((sum, item) => sum + (Number(item.sizeBytes) || 0), 0);
+    } else if (messagesCount > 0) {
+      sizeBytes = await getLogicalSize();
     }
 
     return {
@@ -483,7 +535,6 @@
       generation,
       topic,
       sizeBytes,
-      quotaBytes,
       lastIndexedAt: Number(await getMeta('lastIndexedAt', 0)) || null,
     };
   }
@@ -525,6 +576,8 @@
     countComments,
     countTopics,
     countCommentsByPost,
+    getTopicSize,
+    getLogicalSize,
     deleteTopic,
     clearAll,
     searchComments,

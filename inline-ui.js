@@ -868,7 +868,7 @@ function createForumSearchPanel(options = {}) {
       <span id="ls-forumMessageCount" class="ls-stat-value">0</span>
     </span>
     <span class="ls-stat-item ls-stat-size-item">
-      <span class="ls-stat-label">Хранилище:</span>
+      <span class="ls-stat-label">Индекс:</span>
       <span id="ls-forumIndexSize" class="ls-stat-value">—</span>
     </span>
   `;
@@ -965,7 +965,7 @@ function renderForumStats(stats) {
     sizeEl.classList.toggle('ls-stat-warning', large);
     sizeEl.title = large
       ? 'Индекс форума занимает много места; очистите старые темы'
-      : 'Приблизительный размер локального хранилища';
+      : 'Приблизительный размер индекса форума';
   }
 
   if (topicStats) {

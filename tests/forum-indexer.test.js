@@ -58,6 +58,9 @@ describe('forum indexer', () => {
         topic = value;
       }),
       countCommentsByPost: jest.fn(async () => comments.length),
+      getTopicSize: jest.fn(async () =>
+        comments.reduce((sum, item) => sum + JSON.stringify(item).length, 0),
+      ),
       setMeta: jest.fn(async (key, value) => {
         metadata[key] = value;
       }),
