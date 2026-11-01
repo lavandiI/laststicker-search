@@ -173,6 +173,13 @@ html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background-color: #f2f
   background-color: var(--ls-surface-2) !important;
 }
 
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background:#f7d9aa'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background: #f7d9aa'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background-color:#f7d9aa'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background-color: #f7d9aa'] {
+  background-color: #3a2f12 !important;
+}
+
 html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background:#eafce9'],
 html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background: #eafce9'],
 html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background:#e4fae9'],
