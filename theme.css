@@ -124,6 +124,17 @@ html[data-ls-theme='dark'][data-ls-scope='site'] .clearer {
   color: inherit;
 }
 
+/* Generic rounded blocks, including profile form groups. Inline colours below
+   can still refine the surface. */
+html[data-ls-theme='dark'][data-ls-scope='site'] .group {
+  background-color: var(--ls-surface-2) !important;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] .group label,
+html[data-ls-theme='dark'][data-ls-scope='site'] .group legend {
+  color: var(--ls-text);
+}
+
 /* Inline white backgrounds are common in the site markup. Attribute selectors
    keep those pages readable without a global "*" rule. */
 html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background-color:#ffffff'],
@@ -146,8 +157,31 @@ html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background: #eee'],
 html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background-color:#eeeeee'],
 html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background-color: #eeeeee'],
 html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background-color:#eee'],
-html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background-color: #eee'] {
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background-color: #eee'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background:#f7f7f7'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background: #f7f7f7'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background:#f5f5f5'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background: #f5f5f5'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background:#f2f2f2'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background: #f2f2f2'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background-color:#f7f7f7'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background-color: #f7f7f7'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background-color:#f5f5f5'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background-color: #f5f5f5'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background-color:#f2f2f2'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background-color: #f2f2f2'] {
   background-color: var(--ls-surface-2) !important;
+}
+
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background:#eafce9'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background: #eafce9'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background:#e4fae9'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background: #e4fae9'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background-color:#eafce9'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background-color: #eafce9'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background-color:#e4fae9'],
+html[data-ls-theme='dark'][data-ls-scope='site'] [style*='background-color: #e4fae9'] {
+  background-color: #16281f !important;
 }
 
 /* Inline greys and accent colours. */
