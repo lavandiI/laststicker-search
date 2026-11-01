@@ -17,6 +17,13 @@ module.exports = [
         ...globals.webextensions,
         ...globals.node,
         ...globals.jest,
+        importScripts: 'readonly',
+        LSFetch: 'readonly',
+        LSParser: 'readonly',
+        LSForumParser: 'readonly',
+        LSForumStorage: 'readonly',
+        LSForumIndexer: 'readonly',
+        InlineStorage: 'readonly',
       },
     },
     rules: {

@@ -10,7 +10,18 @@
   let currentPartnerName = '';
   let indexProgressListenerAttached = false;
   let lastMainSearch = { query: '', results: [], limit: 200 };
+  let mainKeyboard = null;
+  let talkKeyboard = null;
+  let forumKeyboard = null;
+  let currentForumPostId = null;
+  let forumProgressListenerAttached = false;
+  let forumPanelInitialized = false;
+  let forumIndexing = false;
+  let lastForumSearch = { query: '', results: [], total: 0, limit: 200 };
   const resolvedMessageTargets = new Map();
+
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const STALE_INDEX_MS = 7 * DAY_MS;
   
   // Check if this is a single talk page
   function isSingleTalkPath(path) {
@@ -28,6 +39,234 @@
     const titleLink = document.querySelector('#content h1 a');
     return titleLink ? titleLink.textContent.trim() : '';
   }
+
+  function isForumTopicPath(path) {
+    return /^\/blog\/post\d+(?:\/page\d+)?\/?$/.test(path || '');
+  }
+
+  function getForumTopicIdFromPath(path) {
+    const match = String(path || '').match(
+      /^\/blog\/post(\d+)(?:\/page\d+)?\/?$/,
+    );
+    return match ? match[1] : '';
+  }
+
+  function getForumPageCountFromDocument() {
+    let lastPage = 0;
+    document.querySelectorAll('#pages a[href*="/page"]').forEach((link) => {
+      const href = link.getAttribute('href') || '';
+      const match = href.match(/\/page(\d+)\/?/);
+      if (match) lastPage = Math.max(lastPage, parseInt(match[1], 10));
+    });
+    return lastPage + 1;
+  }
+
+  function isEditableElement(element) {
+    if (!element || !element.tagName) return false;
+    const tag = element.tagName.toLowerCase();
+    return (
+      tag === 'input' ||
+      tag === 'textarea' ||
+      tag === 'select' ||
+      element.isContentEditable === true ||
+      element.getAttribute('contenteditable') === 'true'
+    );
+  }
+
+  /**
+   * Keyboard navigation for a search input and its result list.
+   * Arrow keys select, Enter opens, Escape clears, "/" and Ctrl+K focus.
+   */
+  function setupKeyboardNavigation(searchInput, results, onOpen) {
+    if (!searchInput || !results) return null;
+    if (searchInput._keyboardController) return searchInput._keyboardController;
+
+    let activeIndex = -1;
+
+    function getItems() {
+      return Array.from(results.querySelectorAll('.ls-result-item'));
+    }
+
+    function setActive(index) {
+      const items = getItems();
+      if (!items.length) {
+        activeIndex = -1;
+        return;
+      }
+
+      if (index < 0) index = items.length - 1;
+      if (index >= items.length) index = 0;
+      activeIndex = index;
+
+      items.forEach((item, itemIndex) => {
+        const active = itemIndex === activeIndex;
+        item.classList.toggle('ls-result-item--active', active);
+        item.setAttribute('aria-selected', active ? 'true' : 'false');
+        if (active) {
+          searchInput.setAttribute('aria-activedescendant', item.id || '');
+          if (typeof item.scrollIntoView === 'function') {
+            item.scrollIntoView({ block: 'nearest' });
+          }
+        }
+      });
+    }
+
+    function reset() {
+      activeIndex = -1;
+      searchInput.removeAttribute('aria-activedescendant');
+      getItems().forEach((item) => {
+        item.classList.remove('ls-result-item--active');
+        item.setAttribute('aria-selected', 'false');
+      });
+    }
+
+    function open(index) {
+      const items = getItems();
+      if (!items.length) return;
+      const item = items[index >= 0 ? index : 0];
+      if (!item) return;
+      if (typeof onOpen === 'function') {
+        onOpen(item);
+      } else {
+        item.click();
+      }
+    }
+
+    searchInput.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        if (!getItems().length) return;
+        setActive(event.key === 'ArrowDown' ? activeIndex + 1 : activeIndex - 1);
+        return;
+      }
+
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        open(activeIndex);
+        return;
+      }
+
+      if (event.key === 'Escape') {
+        if (searchInput.value) {
+          event.preventDefault();
+          searchInput.value = '';
+          searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+        } else {
+          searchInput.blur();
+        }
+      }
+    });
+
+    function onGlobalKeyDown(event) {
+      const isFocusShortcut =
+        event.code === 'KeyK' &&
+        (event.ctrlKey || event.metaKey) &&
+        !event.altKey &&
+        !event.shiftKey;
+      const isSlash =
+        event.key === '/' && !event.ctrlKey && !event.metaKey && !event.altKey;
+
+      if (!isFocusShortcut && !isSlash) return;
+      if (isSlash && isEditableElement(event.target)) return;
+      if (!searchInput.isConnected) return;
+
+      event.preventDefault();
+      searchInput.focus();
+      searchInput.select();
+    }
+
+    document.addEventListener('keydown', onGlobalKeyDown);
+
+    const controller = { reset, setActive, open };
+    searchInput._keyboardController = controller;
+    return controller;
+  }
+
+  function maybeShowStaleBanner(lastIndexedAt, messagesCount) {
+    if (!lastIndexedAt || !messagesCount) return;
+
+    const age = Date.now() - lastIndexedAt;
+    if (age < STALE_INDEX_MS) return;
+
+    window.InlineUI.showStaleBanner(Math.floor(age / DAY_MS));
+  }
+
+  async function updateIndexSize() {
+    const bytes = await window.InlineStorage.getIndexBytes();
+    window.InlineUI.renderIndexSize(bytes);
+  }
+
+  function formatAutoTime(timestamp) {
+    if (!timestamp) return '';
+    try {
+      return new Date(timestamp).toLocaleString('ru-RU');
+    } catch {
+      return '';
+    }
+  }
+
+  async function refreshAutoSettingsUI() {
+    const checkbox = document.getElementById('ls-autoEnabled');
+    const status = document.getElementById('ls-autoStatus');
+    if (!checkbox || !status) return;
+
+    const enabled = await window.InlineStorage.loadAutoEnabled();
+    const fullIndex = await window.InlineStorage.ensureFullIndexFlag();
+    const meta = await window.InlineStorage.loadAutoMeta();
+    const hasExtensionRuntime =
+      typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id;
+
+    checkbox.checked = enabled;
+    checkbox.disabled = !fullIndex || !hasExtensionRuntime;
+    status.classList.remove('ls-auto-status--error');
+
+    if (!hasExtensionRuntime) {
+      status.textContent = 'Доступно только в расширении';
+    } else if (!fullIndex) {
+      status.textContent = 'Сначала выполните полную индексацию';
+    } else if (!enabled) {
+      status.textContent = 'Выключено';
+    } else if (meta.lastError) {
+      status.textContent = `Ошибка: ${meta.lastError}`;
+      status.classList.add('ls-auto-status--error');
+    } else if (
+      meta.lastResult &&
+      meta.lastCheck &&
+      (!meta.lastRun || meta.lastCheck > meta.lastRun)
+    ) {
+      status.textContent = meta.lastResult;
+    } else if (meta.lastRun) {
+      status.textContent = `Обновлено: ${formatAutoTime(meta.lastRun)}`;
+    } else if (meta.lastCheck) {
+      status.textContent = `Проверено: ${formatAutoTime(meta.lastCheck)}`;
+    } else {
+      status.textContent = 'Каждые 6 часов, если нет непрочитанных';
+    }
+  }
+
+  async function refreshPanelFromStorage() {
+    const messages = await window.InlineStorage.loadMessages();
+    const stats = window.InlineStorage.getStats(messages);
+    window.InlineUI.renderStats(stats);
+
+    const lastIndexedAt = await window.InlineStorage.loadLastIndexedAt();
+    window.InlineUI.renderLastIndexedAt(lastIndexedAt);
+    await updateIndexSize();
+    await refreshAutoSettingsUI();
+
+    window.InlineUI.hideStaleBanner();
+    maybeShowStaleBanner(lastIndexedAt, stats.messagesCount);
+
+    const searchInput = document.getElementById('ls-searchInput');
+    const query = searchInput ? searchInput.value.trim() : '';
+    if (query) {
+      performSearch(query);
+    } else if (messages.length) {
+      window.InlineUI.renderEmptyState('no-query');
+    } else {
+      window.InlineUI.renderEmptyState('no-index');
+    }
+  }
   
   // Wait for DOM and dependencies
   function init() {
@@ -35,12 +274,29 @@
     
     const path = window.location.pathname;
     
+    // Check if this is a forum topic page
+    if (isForumTopicPath(path)) {
+      console.log('[LS Search] Forum topic page detected, initializing forum panel');
+      currentForumPostId = getForumTopicIdFromPath(path);
+      initForumPage();
+      return;
+    }
+
+    // Check if this is a forum index or category page
+    if (
+      document.querySelector('#content .forum_list') ||
+      document.getElementById('comments_list')
+    ) {
+      console.log('[LS Search] Forum page detected, initializing forum panel');
+      initForumPage();
+      return;
+    }
+
     // Check if this is a single talk page
     if (isSingleTalkPath(path)) {
       console.log('[LS Search] Single talk page detected, initializing talk panel');
       currentTalkId = getTalkIdFromPath(path);
       currentPartnerName = getPartnerNameFromPage();
-      console.log('[LS Search] Current talkId:', currentTalkId, 'Partner:', currentPartnerName);
       initTalkPage();
       return;
     }
@@ -129,8 +385,7 @@
   
   // Initialize talk panel with event handlers
   async function initTalkPanel(elements) {
-    console.log('[LS Search] initTalkPanel called with elements:', elements);
-    const { searchInput, talkId, partnerName } = elements;
+    const { searchInput, results, talkId, partnerName } = elements;
     
     let messages = await window.InlineStorage.loadMessages();
 
@@ -190,12 +445,420 @@
       });
     }
     
+    talkKeyboard = setupKeyboardNavigation(searchInput, results, (item) => item.click());
+
     // Also trigger search on initial value if any
     if (searchInput && searchInput.value.trim()) {
       performTalkSearch(searchInput.value.trim(), talkId);
     }
   }
   
+  // ---------------------------------------------------------------------------
+  // Forum panel
+  // ---------------------------------------------------------------------------
+
+  function forumRpc(message) {
+    return new Promise((resolve, reject) => {
+      if (
+        typeof chrome === 'undefined' ||
+        !chrome.runtime ||
+        !chrome.runtime.sendMessage
+      ) {
+        reject(new Error('Доступно только в расширении'));
+        return;
+      }
+
+      chrome.runtime.sendMessage(message, (response) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        if (!response) {
+          reject(new Error('Нет ответа от расширения'));
+          return;
+        }
+        if (response.error) {
+          reject(new Error(response.error));
+          return;
+        }
+        resolve(
+          response.result !== undefined ? response.result : response,
+        );
+      });
+    });
+  }
+
+  function setForumIndexingState(running) {
+    forumIndexing = running;
+    const indexBtn = document.getElementById('ls-forumIndexBtn');
+    const cancelBtn = document.getElementById('ls-forumCancelBtn');
+
+    if (indexBtn) indexBtn.disabled = running;
+    if (cancelBtn) cancelBtn.hidden = !running;
+  }
+
+  async function loadForumStats() {
+    return forumRpc({
+      action: 'forumStats',
+      postId: currentForumPostId || '',
+    });
+  }
+
+  async function refreshForumPanel() {
+    const input = document.getElementById('ls-forumSearchInput');
+    let stats;
+    try {
+      stats = await loadForumStats();
+    } catch (e) {
+      window.InlineUI.showForumStatus(`Ошибка: ${e.message}`, 'error');
+      window.InlineUI.renderForumEmptyState('no-index');
+      return;
+    }
+
+    window.InlineUI.renderForumStats(stats);
+    window.InlineUI.renderForumLastIndexedAt(stats.lastIndexedAt);
+
+    const query = input ? input.value.trim() : '';
+    if (currentForumPostId && !stats.topic) {
+      window.InlineUI.renderForumEmptyState('no-topic-index');
+    } else if (query) {
+      await performForumSearch(query, { resetLimit: true });
+    } else if (Number(stats.messagesCount) > 0) {
+      window.InlineUI.renderForumEmptyState('no-query');
+    } else {
+      window.InlineUI.renderForumEmptyState('no-index');
+    }
+  }
+
+  async function initForumPage() {
+    let attempts = 0;
+    const maxAttempts = 20;
+
+    function checkDependencies() {
+      attempts++;
+
+      if (window.InlineUI) {
+        injectStyles();
+
+        const elements = window.InlineUI.createForumSearchPanel({
+          postId: currentForumPostId || '',
+          isTopicPage: Boolean(currentForumPostId),
+        });
+
+        if (!elements) {
+          console.log('[LS Search] Could not create forum panel');
+          window.InlinePanelReady = true;
+          return;
+        }
+
+        initForumPanel(elements);
+        window.InlinePanelReady = true;
+      } else if (attempts < maxAttempts) {
+        setTimeout(checkDependencies, 100);
+      } else {
+        console.log('[LS Search] Dependencies not loaded for forum page');
+        window.InlinePanelReady = true;
+      }
+    }
+
+    checkDependencies();
+  }
+
+  async function initForumPanel(elements) {
+    if (forumPanelInitialized || window._lsForumPanelInitialized) return;
+    forumPanelInitialized = true;
+    window._lsForumPanelInitialized = true;
+
+    const { indexBtn, cancelBtn, clearBtn, searchInput, results } = elements;
+
+    attachForumProgressListener();
+
+    if (!window._lsForumHashListener) {
+      window._lsForumHashListener = true;
+      window.addEventListener('hashchange', highlightForumTarget);
+    }
+
+    if (indexBtn && !indexBtn._forumClickListener) {
+      indexBtn._forumClickListener = true;
+      indexBtn.addEventListener('click', onForumIndexClick);
+    }
+
+    if (cancelBtn && !cancelBtn._forumClickListener) {
+      cancelBtn._forumClickListener = true;
+      cancelBtn.addEventListener('click', onForumCancelClick);
+    }
+
+    if (clearBtn && !clearBtn._forumClickListener) {
+      clearBtn._forumClickListener = true;
+      clearBtn.addEventListener('click', onForumClearClick);
+    }
+
+    if (searchInput && !searchInput._hasForumSearchListener) {
+      searchInput._hasForumSearchListener = true;
+      let searchTimeout;
+      searchInput.addEventListener('input', () => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+          const query = searchInput.value.trim();
+          if (query) {
+            performForumSearch(query, { resetLimit: true });
+          } else {
+            window.InlineUI.renderForumEmptyState('no-query');
+          }
+        }, 300);
+      });
+    }
+
+    if (results && !results._hasForumResultsClickListener) {
+      results._hasForumResultsClickListener = true;
+      results.addEventListener('click', onForumResultsClick);
+    }
+
+    forumKeyboard = setupKeyboardNavigation(searchInput, results, (item) =>
+      item.click(),
+    );
+
+    await refreshForumPanel();
+    highlightForumTarget();
+  }
+
+  async function performForumSearch(query, options = {}) {
+    if (!query) {
+      window.InlineUI.renderForumEmptyState('no-query');
+      return;
+    }
+
+    if (options.resetLimit) lastForumSearch.limit = 200;
+    const postId = currentForumPostId || '';
+    const limit = Math.max(200, lastForumSearch.limit || 200);
+
+    try {
+      const result = await forumRpc({
+        action: 'forumSearch',
+        query,
+        postId: postId || '',
+        limit,
+        offset: 0,
+      });
+
+      lastForumSearch = {
+        query,
+        results: result.results || [],
+        total: Number(result.total) || 0,
+        limit,
+      };
+      renderLastForumSearch();
+    } catch (e) {
+      window.InlineUI.showForumStatus(
+        `Ошибка поиска по форуму: ${e.message}`,
+        'error',
+      );
+    }
+  }
+
+  function renderLastForumSearch() {
+    const groupByTopic = !currentForumPostId;
+    window.InlineUI.renderForumResults(
+      lastForumSearch.results,
+      lastForumSearch.query,
+      lastForumSearch.total,
+      lastForumSearch.limit,
+      {
+        groupByTopic,
+        canLoadMore: lastForumSearch.total > lastForumSearch.limit,
+      },
+    );
+    if (forumKeyboard) forumKeyboard.reset();
+  }
+
+  function onForumResultsClick(event) {
+    const loadMore = event.target.closest('#ls-forumLoadMoreBtn');
+    if (!loadMore) return;
+
+    event.preventDefault();
+    lastForumSearch.limit += 200;
+    performForumSearch(lastForumSearch.query, { resetLimit: false });
+  }
+
+  async function startForumIndex(mode) {
+    if (!currentForumPostId || forumIndexing) return;
+
+    setForumIndexingState(true);
+    window.InlineUI.renderForumErrors([]);
+    window.InlineUI.showForumStatus('Подготовка индексации форума...', 'success');
+
+    try {
+      await forumRpc({
+        action: 'forumStartIndex',
+        postId: currentForumPostId,
+        mode,
+      });
+    } catch (e) {
+      setForumIndexingState(false);
+      window.InlineUI.showForumStatus(
+        `Не удалось начать индексацию: ${e.message}`,
+        'error',
+      );
+      window.InlineUI.renderForumErrors([e.message]);
+    }
+  }
+
+  async function confirmLargeForumTopic() {
+    const pageCount = getForumPageCountFromDocument();
+    if (pageCount <= 200) return true;
+
+    const estimated = Math.max(pageCount * 50, 0);
+    return window.confirm(
+      `В теме ${pageCount} страниц и примерно ${estimated} сообщений. ` +
+        'Индексация может занять несколько минут. Продолжить?',
+    );
+  }
+
+  async function onForumIndexClick(event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    if (!currentForumPostId || forumIndexing) return;
+
+    let stats;
+    try {
+      stats = await loadForumStats();
+    } catch (e) {
+      window.InlineUI.showForumStatus(`Ошибка: ${e.message}`, 'error');
+      return;
+    }
+
+    if (!(await confirmLargeForumTopic())) return;
+    await startForumIndex(stats.topic ? 'update' : 'topic');
+  }
+
+  async function onForumCancelClick(event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+
+    try {
+      await forumRpc({ action: 'forumCancelIndex' });
+      window.InlineUI.showForumStatus('Останавливаю индексацию...', 'success');
+    } catch (e) {
+      window.InlineUI.showForumStatus(`Ошибка отмены: ${e.message}`, 'error');
+    }
+  }
+
+  async function onForumClearClick(event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+
+    const isTopic = Boolean(currentForumPostId);
+    const confirmed = window.confirm(
+      isTopic
+        ? 'Удалить индекс этой темы? Остальные темы останутся.'
+        : 'Удалить индекс форума? Личные диалоги останутся.',
+    );
+    if (!confirmed) return;
+
+    try {
+      await forumRpc(
+        isTopic
+          ? { action: 'forumDeleteTopic', postId: currentForumPostId }
+          : { action: 'forumClear' },
+      );
+      lastForumSearch = { query: '', results: [], total: 0, limit: 200 };
+      setForumIndexingState(false);
+      const input = document.getElementById('ls-forumSearchInput');
+      if (input) input.value = '';
+      window.InlineUI.renderForumErrors([]);
+      window.InlineUI.renderForumEmptyState(
+        isTopic ? 'no-topic-index' : 'no-index',
+      );
+      window.InlineUI.showForumStatus(
+        isTopic ? 'Индекс темы очищен' : 'Индекс форума очищен',
+        'success',
+      );
+      await refreshForumPanel();
+    } catch (e) {
+      window.InlineUI.showForumStatus(`Ошибка очистки: ${e.message}`, 'error');
+    }
+  }
+
+  function attachForumProgressListener() {
+    if (
+      forumProgressListenerAttached ||
+      typeof chrome === 'undefined' ||
+      !chrome.runtime ||
+      !chrome.runtime.onMessage
+    ) {
+      return;
+    }
+
+    forumProgressListenerAttached = true;
+    chrome.runtime.onMessage.addListener((message) => {
+      if (!message) return;
+
+      if (message.action === 'forumIndexProgress') {
+        setForumIndexingState(true);
+        window.InlineUI.showForumStatus(
+          `Индексация: ${message.done}/${message.total} страниц, ${
+            message.messageCount || 0
+          } сообщений`,
+          'success',
+        );
+        return;
+      }
+
+      if (message.action === 'forumIndexFinished') {
+        setForumIndexingState(false);
+        const result = message.result || {};
+
+        const errors = result.errors || [];
+        if (result.error) {
+          errors.unshift(result.error);
+          window.InlineUI.showForumStatus(
+            `Ошибка индексации: ${result.error}`,
+            'error',
+          );
+        } else if (result.cancelled) {
+          window.InlineUI.showForumStatus('Индексация отменена', 'success');
+        } else if (result.noChanges) {
+          window.InlineUI.showForumStatus('Новых сообщений нет', 'success');
+        } else {
+          window.InlineUI.showForumStatus(
+            `Готово: ${result.messageCount || 0} сообщений`,
+            'success',
+          );
+        }
+
+        window.InlineUI.renderForumErrors(errors);
+        refreshForumPanel();
+      }
+    });
+  }
+
+  function highlightForumTarget() {
+    const match = String(window.location.hash || '').match(/^#c(\d+)$/);
+    if (!match) return;
+
+    const commentId = match[1];
+    const target =
+      document.getElementById(`comment${commentId}`) ||
+      document.querySelector(`[name="c${commentId}"]`);
+
+    if (!target) return;
+
+    target.classList.add('ls-forum-target');
+    setTimeout(() => {
+      target.classList.remove('ls-forum-target');
+    }, 6000);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Dialog helpers
+  // ---------------------------------------------------------------------------
+
   // Build the dialog base path, dropping a pageN suffix.
   function getTalkBasePath(path) {
     const base = path.replace(/page\d+\/?$/, '');
@@ -414,6 +1077,16 @@
     });
   }
 
+  function getSelfUserId(doc) {
+    if (!doc || !doc.querySelector) return '';
+
+    const link = doc.querySelector('#left_menu a[href^="/users/"]');
+    if (!link) return '';
+
+    const match = (link.getAttribute('href') || '').match(/^\/users\/(\d+)(?:\/|$)/);
+    return match ? match[1] : '';
+  }
+
   // Parse a message element
   function parseUserMessageFromElement(el, defaultPartner) {
     try {
@@ -463,8 +1136,11 @@
       const userLink = headerDiv.querySelector('a[href^="/users/"]');
       
       if (userLink) {
-        const href = userLink.getAttribute('href');
-        if (href && !href.includes('/83061/')) {
+        const href = userLink.getAttribute('href') || '';
+        const selfUserId = getSelfUserId(el.ownerDocument);
+        const isSelf = selfUserId && href.includes(`/users/${selfUserId}/`);
+
+        if (!isSelf) {
           const linkText = userLink.textContent.trim();
           if (linkText) {
             partner = linkText;
@@ -573,6 +1249,7 @@
       const limited = results.slice(0, MAX_RESULTS);
       
       window.InlineUI.renderResults(limited, query, totalCount, MAX_RESULTS);
+      if (talkKeyboard) talkKeyboard.reset();
     });
   }
   
@@ -658,6 +1335,15 @@
     
     const lastIndexedAt = await window.InlineStorage.loadLastIndexedAt();
     window.InlineUI.renderLastIndexedAt(lastIndexedAt);
+    await updateIndexSize();
+    await refreshAutoSettingsUI();
+
+    const readNoticeSeen = await window.InlineStorage.loadReadNoticeSeen();
+    if (!readNoticeSeen) {
+      window.InlineUI.showReadNotice();
+    }
+
+    maybeShowStaleBanner(lastIndexedAt, stats.messagesCount);
     
     const lastQuery = await window.InlineStorage.loadLastQuery();
     if (searchInput) {
@@ -704,6 +1390,67 @@
       cancelBtn.addEventListener('click', onCancelClick);
     }
 
+    const staleRefresh = document.getElementById('ls-staleRefresh');
+    if (staleRefresh) {
+      staleRefresh.addEventListener('click', () => {
+        window.InlineUI.hideStaleBanner();
+        onIndexClick();
+      });
+    }
+
+    const staleDismiss = document.getElementById('ls-staleDismiss');
+    if (staleDismiss) {
+      staleDismiss.addEventListener('click', () => {
+        window.InlineUI.hideStaleBanner();
+      });
+    }
+
+    const readNoticeDismiss = document.getElementById('ls-readNoticeDismiss');
+    if (readNoticeDismiss) {
+      readNoticeDismiss.addEventListener('click', async () => {
+        await window.InlineStorage.saveReadNoticeSeen();
+        window.InlineUI.hideReadNotice();
+      });
+    }
+
+    const indexErrors = document.getElementById('ls-indexErrors');
+    if (indexErrors) {
+      indexErrors.addEventListener('click', (event) => {
+        if (event.target.closest('#ls-retryBtn')) {
+          onIndexClick();
+        }
+      });
+    }
+
+    const autoCheckbox = document.getElementById('ls-autoEnabled');
+    if (autoCheckbox) {
+      autoCheckbox.addEventListener('change', async () => {
+        await window.InlineStorage.saveAutoEnabled(autoCheckbox.checked);
+        await refreshAutoSettingsUI();
+      });
+    }
+
+    if (
+      !window._lsStorageChangedListener &&
+      typeof chrome !== 'undefined' &&
+      chrome.storage &&
+      chrome.storage.onChanged
+    ) {
+      window._lsStorageChangedListener = true;
+      chrome.storage.onChanged.addListener((changes, area) => {
+        if (area !== 'local') return;
+        if (
+          changes.ls_search_messages ||
+          changes.ls_search_last_indexed_at ||
+          changes.ls_search_full_index_at ||
+          changes.ls_search_auto_enabled ||
+          changes.ls_search_auto_meta
+        ) {
+          refreshPanelFromStorage();
+        }
+      });
+    }
+
     if (searchInput && !searchInput._hasSearchListener) {
       searchInput._hasSearchListener = true;
       let searchTimeout;
@@ -731,35 +1478,7 @@
       results.addEventListener('click', onResultsClick);
     }
 
-    // Keyboard navigation
-    let activeIndex = -1;
-    
-    document.addEventListener('keydown', (e) => {
-      if (e.target !== searchInput) return;
-      
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        e.preventDefault();
-        
-        const items = Array.from(document.querySelectorAll('.ls-result-item'));
-        if (!items.length) return;
-        
-        if (e.key === 'ArrowDown') {
-          activeIndex = (activeIndex + 1) % items.length;
-        } else if (e.key === 'ArrowUp') {
-          activeIndex = (activeIndex - 1 + items.length) % items.length;
-        }
-        
-        // Update active state
-        items.forEach((item, i) => {
-          if (i === activeIndex) {
-            item.classList.add('ls-result-item--active');
-            item.scrollIntoView({ block: 'nearest' });
-          } else {
-            item.classList.remove('ls-result-item--active');
-          }
-        });
-      }
-    });
+    mainKeyboard = setupKeyboardNavigation(searchInput, results, (item) => item.click());
   }
    
   // Cancel a running background indexing pass.
@@ -786,6 +1505,11 @@
     
     indexBtn.disabled = true;
     indexBtn.textContent = 'Индексация...';
+
+    window.InlineUI.hideStaleBanner();
+    window.InlineUI.clearIndexErrors();
+    window.InlineUI.hideReadNotice();
+    window.InlineStorage.saveReadNoticeSeen().catch(() => {});
 
     const cancelBtn = document.getElementById('ls-cancelBtn');
     if (cancelBtn) {
@@ -833,6 +1557,8 @@
       const stats = window.InlineStorage.getStats(allMessages);
       window.InlineUI.renderStats(stats);
       window.InlineUI.renderLastIndexedAt(now);
+      window.InlineUI.clearIndexErrors();
+      await updateIndexSize();
       
       if (addedCount > 0) {
         window.InlineUI.showStatus(`Добавлено ${addedCount} сообщений`, 'success');
@@ -886,6 +1612,74 @@
               return;
             }
             
+            if (response && response.result) {
+              const result = response.result;
+              const messages = await window.InlineStorage.loadMessages();
+              const stats = window.InlineStorage.getStats(messages);
+              const indexedAt =
+                result.indexedAt || (await window.InlineStorage.loadLastIndexedAt());
+
+              window.InlineUI.renderStats(stats);
+              window.InlineUI.renderLastIndexedAt(indexedAt);
+              await updateIndexSize();
+              await refreshAutoSettingsUI();
+
+              const errors = Array.isArray(result.errors) ? result.errors : [];
+              if (errors.length > 0) {
+                window.InlineUI.renderIndexErrors(errors);
+              } else {
+                window.InlineUI.clearIndexErrors();
+              }
+
+              if (result.skipped) {
+                window.InlineUI.showStatus(
+                  result.reason || 'Автообновление пропущено',
+                  'success',
+                );
+              } else if (result.cancelled) {
+                window.InlineUI.showStatus(
+                  `Индексация остановлена. Добавлено ${result.addedCount || 0} сообщений`,
+                  'success',
+                );
+              } else if (errors.length > 0) {
+                window.InlineUI.showStatus(
+                  `Готово, но ${errors.length} ошибок. Добавлено ${
+                    result.addedCount || 0
+                  } сообщений`,
+                  'error',
+                );
+              } else if (result.addedCount > 0) {
+                window.InlineUI.showStatus(
+                  `Добавлено ${result.addedCount} сообщений; пропущено ${
+                    result.skippedTalks || 0
+                  } без изменений`,
+                  'success',
+                );
+              } else if (result.skippedTalks > 0 && stats.messagesCount > 0) {
+                window.InlineUI.showStatus(
+                  `Всё актуально: пропущено ${result.skippedTalks} диалогов без изменений`,
+                  'success',
+                );
+              } else if (stats.messagesCount === 0) {
+                window.InlineUI.showStatus(
+                  'Индекс пуст: нажмите «Индексировать» ещё раз',
+                  'error',
+                );
+              } else {
+                window.InlineUI.showStatus('Новых сообщений не найдено', 'success');
+              }
+
+              const searchInput = document.getElementById('ls-searchInput');
+              if (searchInput && searchInput.value.trim()) {
+                performSearch(searchInput.value.trim());
+              } else {
+                window.InlineUI.renderEmptyState('no-query');
+              }
+
+              resolve();
+              return;
+            }
+
             if (response && Array.isArray(response.messages)) {
               const newMessages = response.messages;
               const indexedSections = response.indexedSections || [];
@@ -931,7 +1725,14 @@
                 errors: errors.length,
               });
               window.InlineUI.renderStats(stats);
-                      window.InlineUI.renderLastIndexedAt(now);
+              window.InlineUI.renderLastIndexedAt(now);
+              await updateIndexSize();
+
+              if (errors.length > 0) {
+                window.InlineUI.renderIndexErrors(errors);
+              } else {
+                window.InlineUI.clearIndexErrors();
+              }
 
               if (response.cancelled) {
                 window.InlineUI.showStatus(
@@ -987,10 +1788,23 @@
     if (!confirmed) return;
     
     try {
+      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id) {
+        chrome.runtime.sendMessage({ action: 'cancelIndex' }, () => {
+          void chrome.runtime.lastError;
+        });
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+
       await window.InlineStorage.clearMessages();
       
       window.InlineUI.renderStats({ dialogsCount: 0, messagesCount: 0 });
       window.InlineUI.renderLastIndexedAt(null);
+      window.InlineUI.renderIndexSize(0);
+      window.InlineUI.clearIndexErrors();
+      window.InlineUI.hideStaleBanner();
+      lastMainSearch = { query: '', results: [], limit: 200 };
+      if (mainKeyboard) mainKeyboard.reset();
+      await refreshAutoSettingsUI();
       
       const searchInput = document.getElementById('ls-searchInput');
       if (searchInput) {
@@ -1041,6 +1855,7 @@
       limit,
       true,
     );
+    if (mainKeyboard) mainKeyboard.reset();
   }
 
   function loadMoreMainSearch() {
@@ -1346,12 +2161,21 @@
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
       parseImagesFromHtml,
+      getSelfUserId,
+      parseUserMessageFromElement,
+      parseDate,
+      extractMessagesFromTalkDocument,
       getTalkBasePath,
       buildTalkMessageKey,
       dedupeTalkMessages,
       fetchAllTalkPages,
       findMessageOnPage,
       resolveMessageTarget,
+      setupKeyboardNavigation,
+      isEditableElement,
+      isForumTopicPath,
+      getForumTopicIdFromPath,
+      getForumPageCountFromDocument,
     };
   }
   

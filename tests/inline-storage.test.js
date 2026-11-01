@@ -58,6 +58,50 @@ describe('inline-storage', () => {
     expect(message.url).toBe('https://www.laststicker.ru/users/my_talks/1/');
   });
 
+  test('remembers that the read-marking notice was dismissed', async () => {
+    localStorage.clear();
+    expect(await window.InlineStorage.loadReadNoticeSeen()).toBe(false);
+
+    await window.InlineStorage.saveReadNoticeSeen();
+    expect(await window.InlineStorage.loadReadNoticeSeen()).toBe(true);
+
+    localStorage.clear();
+  });
+
+  test('enables automatic refresh by default and remembers a change', async () => {
+    localStorage.clear();
+    expect(await window.InlineStorage.loadAutoEnabled()).toBe(true);
+
+    await window.InlineStorage.saveAutoEnabled(false);
+    expect(await window.InlineStorage.loadAutoEnabled()).toBe(false);
+
+    localStorage.clear();
+  });
+
+  test('migrates an existing non-empty index to a complete index', async () => {
+    localStorage.clear();
+    localStorage.setItem(
+      'ls_search_messages',
+      JSON.stringify([{ talkId: '1', messageId: '2', text: 'hello', partner: 'p' }]),
+    );
+    localStorage.setItem('ls_search_last_indexed_at', '123');
+
+    expect(await window.InlineStorage.ensureFullIndexFlag()).toBe(true);
+    expect(await window.InlineStorage.loadFullIndexAt()).toBe(123);
+
+    localStorage.clear();
+  });
+
+  test('reports the index size from the stored payload', async () => {
+    localStorage.clear();
+    localStorage.setItem('ls_search_messages', JSON.stringify([{ text: 'hello' }]));
+
+    const bytes = await window.InlineStorage.getIndexBytes();
+
+    expect(bytes).toBeGreaterThan(0);
+    localStorage.clear();
+  });
+
   test('counts dialogs by talkId, not by partner', () => {
     const messages = [
       { talkId: '1', partner: 'p', text: 'a' },

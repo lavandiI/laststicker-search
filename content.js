@@ -1,6 +1,8 @@
 // LastSticker Search - Content Script
 // Extracts messages from laststicker.ru pages
 
+var isCommonJS = typeof module !== 'undefined' && module.exports;
+
 console.log('[LS Search] Content script starting...');
 
 // Parallel fetch helper - processes URLs in batches
@@ -139,10 +141,12 @@ function waitForInlinePanel(attempt, maxAttempts, resolve, reject) {
 }
 
 // Initialize inline panel when DOM is ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initInlinePanel);
-} else {
-  initInlinePanel();
+if (!isCommonJS) {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initInlinePanel);
+  } else {
+    initInlinePanel();
+  }
 }
 
 // Helper function to detect if we're on hidden talks
@@ -583,6 +587,18 @@ async function fetchFullTalkConversation(talkId, talkUrl) {
   return dedupeTalkMessages(messages);
 }
 
+// Current account id from the site's left menu, used to tell own messages
+// apart from the partner's.
+function getSelfUserId(doc) {
+  if (!doc || !doc.querySelector) return '';
+
+  const link = doc.querySelector('#left_menu a[href^="/users/"]');
+  if (!link) return '';
+
+  const match = (link.getAttribute('href') || '').match(/^\/users\/(\d+)(?:\/|$)/);
+  return match ? match[1] : '';
+}
+
 // Parse a .user_message element
 function parseUserMessage(el, defaultPartner) {
   try {
@@ -631,17 +647,16 @@ function parseUserMessage(el, defaultPartner) {
     const userLink = headerDiv.querySelector('a[href^="/users/"]');
     
     if (userLink) {
-      const href = userLink.getAttribute('href');
+      const href = userLink.getAttribute('href') || '';
+      const selfUserId = getSelfUserId(el.ownerDocument);
+      const isSelf = selfUserId && href.includes(`/users/${selfUserId}/`);
+
       // If link is to self - filter it out, keep defaultPartner
-      if (href && href.includes('/83061/')) {
-        // partner already = defaultPartner
-      } else {
+      if (!isSelf) {
         // Try to get partner name from link text
         const linkText = userLink.textContent.trim();
         if (linkText) {
           partner = linkText;
-        } else {
-          // Link exists but has no text - keep defaultPartner (from page title)
         }
       }
     }
@@ -753,23 +768,36 @@ if (document.readyState === 'loading') {
 }
 
 // Listen for messages from popup
-chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
-  if (request.action === 'extractMessages') {
-    extractAllMessages()
-      .then(function(messages) {
-        sendResponse({ messages: messages });
-      })
-      .catch(function(error) {
-        console.error('extractAllMessages error:', error);
-        sendResponse({ messages: [] });
-      });
-    return true;
-  }
+if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+  chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
+    if (request.action === 'extractMessages') {
+      extractAllMessages()
+        .then(function(messages) {
+          sendResponse({ messages: messages });
+        })
+        .catch(function(error) {
+          console.error('extractAllMessages error:', error);
+          sendResponse({ messages: [] });
+        });
+      return true;
+    }
 
-  return false;
-});
+    return false;
+  });
+}
 
 // Expose functions globally for inline-panel
 window.extractAllMessages = extractAllMessages;
 window.extractAllFromTalksList = extractAllFromTalksList;
 window.extractFromSingleTalk = extractFromSingleTalk;
+
+if (isCommonJS) {
+  module.exports = {
+    getSelfUserId,
+    parseUserMessage,
+    parseDate,
+    extractMessagesFromTalkDocument,
+    buildTalkMessageKey,
+    dedupeTalkMessages,
+  };
+}

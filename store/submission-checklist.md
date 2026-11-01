@@ -1,88 +1,86 @@
-# Публикация LastSticker Search в Chrome Web Store
+# Публикация LastSticker Search 1.5.0 в Chrome Web Store
 
 ## 0. Что уже готово
 
-- Версия: 1.2.1.
-- ZIP расширения: `laststicker-search-1.2.1.zip` в GitHub Release.
+- Версия **1.2.1 опубликована** для всех.
+- Следующая версия — **1.5.0**; она включает изменения 1.3.0, 1.3.1, 1.4.0 и поиск по форуму.
+- 1.4.0 отдельно не загружаем, чтобы не проходить два ревью подряд.
+- Ветка подготовки: `release/1.5.0`.
 - Тексты карточки: `store/listing-ru.md`.
-- Политика конфиденциальности: `PRIVACY.md`.
+- Политика конфиденциальности: `PRIVACY.md` и `docs/privacy.html`.
+- ZIP: `dist/laststicker-search-1.5.0.zip`.
 
-## 1. Подготовить публичный URL политики
+## 1. Проверить версию и собрать ZIP
 
-Chrome Web Store требует публичный URL, который открывается без входа.
+```bash
+git checkout release/1.5.0
+npm ci
+npm test -- --runInBand
+npm run lint
+npm run package
+```
 
-Варианты:
+Проверить, что:
 
-1. GitHub Gist (публичный) с содержимым `PRIVACY.md`.
-2. GitHub Pages в отдельном публичном репозитории.
-3. Собственный сайт/домен.
+- в `manifest.json` и `package.json` версия **1.5.0**;
+- ZIP содержит `manifest.json` в корне, а не во вложенной папке;
+- внутри есть `forum-parser.js`, `forum-storage.js`, `forum-indexer.js`.
 
-Публичные URL после включения GitHub Pages:
+## 2. Публичный URL политики
+
+Политика должна открываться без входа:
 
 - главная: https://lavandii.github.io/laststicker-search/
 - политика: https://lavandii.github.io/laststicker-search/privacy.html
 - поддержка: https://github.com/lavandiI/laststicker-search/issues
 
-## 2. Подготовить скриншоты
+## 3. Скриншоты
 
-Минимум один скриншот:
+Три файла 1280×800, 24-бит PNG без альфа-канала:
 
-- 1280×800 (рекомендуется) или 640×400;
-- панель поиска с результатами;
-- без реальных имён и сообщений — используйте тестовые данные или размытие.
+1. `store/screenshot-dialogs-1.5.0.png` — панель поиска по диалогам.
+2. `store/screenshot-forum-1.5.0.png` — глобальный поиск по темам форума.
+3. `store/screenshot-topic-1.5.0.png` — панель темы с поиском только по ней.
 
-Желательно два скриншота:
-
-1. Главная панель с результатами поиска.
-2. Панель на странице диалога или прогресс индексации.
+В кадре нет реальных имён и сообщений — данные демонстрационные.
 
 Рекламные изображения:
 
 - `store/promo-440x280.png` — 440×280 PNG, **Small promo tile**;
 - `store/marquee-1400x560.jpg` — 1400×560 JPEG, 24-бит без альфа-канала, **Marquee promo tile**.
 
-## 3. Скачать ZIP
-
-Скачать `laststicker-search-1.2.1.zip` из GitHub Release:
-
-https://github.com/lavandiI/laststicker-search/releases/download/v1.2.1/laststicker-search-1.2.1.zip
-
-Проверить, что внутри есть `manifest.json` в корне, а не вложенная папка.
-
 ## 4. Загрузить в Chrome Web Store
 
 1. Открыть https://chrome.google.com/webstore/devconsole
-2. Нажать **New item** / **Добавить новый элемент**.
-3. Загрузить ZIP.
-4. Заполнить карточку:
+2. Выбрать **LastSticker Search**.
+3. Открыть **Package → Upload new package** и загрузить `laststicker-search-1.5.0.zip`.
+4. Проверить карточку:
    - название: `LastSticker Search`;
    - краткое описание из `store/listing-ru.md`;
-   - подробное описание;
+   - подробное описание с форумом;
    - категория: Tools (группа Productivity);
    - язык: Русский;
    - иконка 128×128 уже внутри ZIP.
-5. Загрузить скриншоты, `store/promo-440x280.png` в **Small promo tile** и `store/marquee-1400x560.jpg` в **Marquee promo tile**.
-6. Заполнить **Privacy practices**:
-   - single purpose;
-   - обоснования `storage`, `scripting`, `tabs`, host permissions;
-   - data usage: Personal communications, Website content, Personally identifiable information — локальное хранение;
+5. Загрузить три скриншота 1.5.0, `store/promo-440x280.png` в **Small promo tile** и `store/marquee-1400x560.jpg` в **Marquee promo tile**.
+6. Проверить **Privacy practices**:
+   - single purpose: диалоги и форум laststicker.ru;
+   - обоснования `storage`, `scripting`, `offscreen`, `alarms`, host permissions;
+   - data usage: Personal communications, Website content, Personally identifiable information — только локальное хранение;
    - remote code: No;
    - privacy policy URL.
-7. Выбрать видимость:
-   - **Unlisted** — доступ только по ссылке, автообновления работают;
-   - **Public** — доступен всем.
+7. Проверить видимость: сейчас расширение **Public — опубликовано для всех**.
 8. Отправить на review.
 
 ## 5. После публикации
 
-Chrome сам обновляет расширение у пользователей. Для новой версии:
+Chrome сам обновит расширение у пользователей. Для следующей версии:
 
 1. Поднять версию в `manifest.json`, `package.json`, `package-lock.json`.
 2. Обновить `CHANGELOG.md`.
 3. Собрать новый ZIP.
 4. Загрузить его в дашборд и отправить на review.
 
-Теги и GitHub Releases не обновляют расширение в Chrome — источником автообновлений служит только Chrome Web Store.
+Теги и GitHub Releases не обновляют расширение в Chrome — источник автообновлений только Chrome Web Store.
 
 ## 6. Если review отклонит
 
@@ -93,4 +91,4 @@ Chrome сам обновляет расширение у пользовател�
 - скриншоты не показывают реальную работу расширения;
 - расширение выглядит как scraping без объяснения пользы.
 
-Что делать: уточнить описание, добавить пояснение, что расширение работает только с собственными диалогами пользователя и хранит данные локально.
+Что делать: уточнить описание, добавить пояснение, что расширение работает только с собственными диалогами и форумом пользователя и хранит данные локально.
