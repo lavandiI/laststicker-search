@@ -127,6 +127,12 @@ LastSticker Search — расширение для Chrome, которое пом
 
 Загрузить в дашборде: **Store listing → Graphic assets → Marquee promo tile**.
 
+## Social preview
+
+Файл: `store/social-preview-1280x640.png` — 1280×640 PNG, 24-бит без альфа-канала.
+
+Загрузить в GitHub: **Settings → Social preview** репозитория.
+
 ## Скриншоты
 
 Файлы (1280×800, 24-бит PNG, без альфа-канала):
